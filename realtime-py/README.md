@@ -113,10 +113,10 @@ By default, the agent greets first like a customer-support call. The fake caller
 
 The second turn waits until the next agent audio chunk is observed, then starts shortly afterward. When the fake caller's local user-start signal arrives during agent output, the service stops forwarding agent audio, sends a truncate event to OpenAI, and records the agent utterance as interrupted.
 
-To skip the initial greeting and start with the caller, run:
+To change how quickly the second recording interrupts the agent:
 
 ```bash
-.venv/bin/python scripts/fake_call.py --no-agent-greeting
+.venv/bin/python scripts/fake_call.py --barge-in-delay-ms 500
 ```
 
 ## Transcript Output

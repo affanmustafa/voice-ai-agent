@@ -53,17 +53,17 @@ class Settings:
     def __init__(self) -> None:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_model = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
-        self.voice = os.getenv("OPENAI_REALTIME_VOICE", "marin")
-        self.temperature = float(os.getenv("TEMPERATURE", "0.8"))
+        self.voice = "marin"
+        self.temperature = 0.8
         self.host = os.getenv("HOST", "0.0.0.0")
         self.port = int(os.getenv("PORT", "5050"))
-        self.data_dir = Path(os.getenv("CALL_DATA_DIR", ROOT_DIR / "data" / "calls"))
-        self.fixture_dir = Path(os.getenv("FIXTURE_DIR", ROOT_DIR / "fixtures"))
+        self.data_dir = ROOT_DIR / "data" / "calls"
+        self.fixture_dir = ROOT_DIR / "fixtures"
         self.audio_sample_rate = 24000
         self.audio_channels = 1
         self.audio_sample_width = 2
-        self.chunk_ms = int(os.getenv("AUDIO_CHUNK_MS", "20"))
-        self.silence_duration_ms = int(os.getenv("SILENCE_DURATION_MS", "700"))
+        self.chunk_ms = 20
+        self.silence_duration_ms = int(os.getenv("SILENCE_DURATION_MS", "400"))
 
 
 settings = Settings()

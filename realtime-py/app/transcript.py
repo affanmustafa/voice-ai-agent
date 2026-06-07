@@ -186,9 +186,13 @@ class CallSession:
         self.latest_client_timestamp_ms = max(self.latest_client_timestamp_ms, timestamp_ms)
 
     def start_user_speech(self, start_ms: Optional[int] = None) -> None:
+        if self.active_user.start_ms is not None:
+            return
         self.active_user = ActiveUserTurn(start_ms=start_ms if start_ms is not None else self.latest_client_timestamp_ms)
 
     def stop_user_speech(self, end_ms: Optional[int] = None) -> None:
+        if self.active_user.end_ms is not None:
+            return
         self.active_user.end_ms = end_ms if end_ms is not None else self.latest_client_timestamp_ms
         self.latency.mark_user_speech_end()
 
