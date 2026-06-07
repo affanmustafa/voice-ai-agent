@@ -22,7 +22,7 @@ SYSTEM_MESSAGE = """
 - Keep the response brief and to the point.
 
 ## Length
-- 1-3 sentences per turn
+- 1-2 sentences per turn
 
 ## Language
 - The conversation will be only in English.

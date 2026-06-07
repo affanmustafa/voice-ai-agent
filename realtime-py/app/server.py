@@ -59,9 +59,19 @@ async def handle_media_stream(websocket: WebSocket) -> None:
     use_text_fallback = True
     agent_greets_first = False
     suppressed_agent_items = set()
+    transcript_saved = False
 
     async with websockets.connect(realtime_url(), additional_headers=openai_headers()) as openai_ws:
         await initialize_session(openai_ws)
+
+        def save_transcript(interrupted: bool) -> None:
+            nonlocal transcript_saved
+            if not session or transcript_saved:
+                return
+            session.maybe_finalize_user_with_fallback()
+            session.finalize_agent(interrupted=interrupted)
+            store.save(session)
+            transcript_saved = True
 
         async def handle_barge_in() -> None:
             nonlocal outgoing_audio_enabled
@@ -135,20 +145,19 @@ async def handle_media_stream(websocket: WebSocket) -> None:
 
                     if event == "stop":
                         if session:
-                            session.maybe_finalize_user_with_fallback()
-                            session.finalize_agent(interrupted=False)
-                            store.save(session)
+                            save_transcript(interrupted=False)
                             await websocket.send_json({"event": "call_saved", "call_id": session.call_id})
                         stop_event.set()
                         await openai_ws.close()
                         break
             except WebSocketDisconnect:
-                stop_event.set()
-                if session:
-                    session.finalize_agent(interrupted=True)
-                    store.save(session)
-                if openai_ws.state.name == "OPEN":
-                    await openai_ws.close()
+                pass
+            finally:
+                if not stop_event.is_set():
+                    save_transcript(interrupted=True)
+                    stop_event.set()
+                    if openai_ws.state.name == "OPEN":
+                        await openai_ws.close()
 
         async def send_to_client() -> None:
             nonlocal outgoing_audio_enabled

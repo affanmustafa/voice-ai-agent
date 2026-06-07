@@ -2,7 +2,7 @@
 
 Python implementation of the voice-loop portion of the take-home. It replaces real telephony with a local fake caller that streams two WAV files over WebSocket, and uses OpenAI Realtime as the single speech-to-speech provider for STT, LLM, and TTS.
 
-The TypeScript transcript API and React transcript UI are separate next steps.
+The companion Next.js app in `../realtime-nextjs` reads the saved transcripts through the HTTP endpoints exposed here.
 
 ## What Runs Here
 
@@ -12,6 +12,7 @@ The TypeScript transcript API and React transcript UI are separate next steps.
 - Barge-in handling with `conversation.item.truncate`
 - Aligned JSON transcript persistence under `data/calls/`
 - Per-turn latency metrics for STT final, LLM first token, TTS first byte, and voice-to-voice
+- REST endpoints: `GET /calls` and `GET /calls/{call_id}`
 
 ## Architecture
 
@@ -44,6 +45,7 @@ app/transcript.py    # Transcript state, interruption handling, latency metrics
 app/audio.py         # WAV validation and frame chunking
 app/config.py        # Environment config and system prompt
 scripts/fake_call.py # Local caller that streams the two WAV files
+tests/               # Disconnect behavior tests
 ```
 
 ## Real Vs Mocked
@@ -122,14 +124,14 @@ To skip the initial greeting and start with the caller, run:
 After a fake call finishes, inspect:
 
 ```bash
-data/calls/demo-call-001.json
+data/calls/call-*.json
 ```
 
 Expected shape:
 
 ```json
 {
-	"call_id": "demo-call-001",
+	"call_id": "call-20260607T191735726Z",
 	"started_at": "2026-06-06T00:00:00+00:00",
 	"audio_format": "pcm16_24000_mono",
 	"utterances": [
@@ -223,3 +225,24 @@ The fixtures are real spoken WAV files:
 - mono
 
 This format matches the OpenAI Realtime audio configuration used by the service and keeps local chunking simple.
+
+The fake caller reads the WAV container, validates the format, slices raw PCM into 20 ms chunks, base64-encodes each chunk, and streams them over WebSocket in real time. PCM was chosen over mu-law because this demo does not cross a telephony boundary, and 24 kHz mono preserves better speech quality for OpenAI transcription without adding transcoding work.
+
+## HTTP API
+
+```bash
+curl http://localhost:5050/calls
+curl http://localhost:5050/calls/{call_id}
+```
+
+The Next.js app uses these endpoints through its own `/api/calls` proxy routes.
+
+## Disconnects
+
+A normal `stop` event saves the transcript as complete. If the fake caller disconnects mid-call, the server saves a partial transcript and finalizes any active agent utterance with `interrupted: true`. OpenAI-side socket failures are logged and stop the loop, but that failure path is less complete than the client-disconnect path.
+
+## Tests
+
+```bash
+PYTHONPYCACHEPREFIX=/private/tmp/realtime-py-cache .venv/bin/python -m pytest -q
+```

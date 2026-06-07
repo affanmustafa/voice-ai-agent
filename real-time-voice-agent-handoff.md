@@ -1,83 +1,113 @@
-# Handoff: Real-Time Voice Agent Python Service
+# Handoff: Real-Time Voice Agent — Full Stack
 
 ## Context
 
 Workspace: `/Users/affan/Desktop/Work/real-time-voice-agent`
 
-Current focus was the Python service inside:
+This is a take-home assignment (SF-ENG-0042) to build a single-call demo of a Retell/Vapi/Bland-style voice agent. The Python service is complete. The Next.js frontend is functionally complete. The root README now documents the architecture, latency, audio format, barge-in behavior, run commands, and known disconnect behavior.
 
-`/Users/affan/Desktop/Work/real-time-voice-agent/speech-assistant-openai-realtime-api-python`
+---
 
-The Python part of the take-home is functionally complete and verified locally. The next likely phase is the TypeScript API and React UI, but this handoff is scoped to the current Python implementation state.
+## What Was Built This Session
 
-## What Was Built
+### Python (`realtime-py/`)
+- Added `generate_call_id()` to `app/transcript.py` — produces IDs like `call-20260607T143022123Z`
+- Added `list_ids()` to `TranscriptStore` in `app/transcript.py`
+- Added two REST endpoints to `app/server.py`:
+  - `GET /calls` — returns `{ calls: [...] }`
+  - `GET /calls/{call_id}` — returns full transcript JSON or 404
+- Added disconnect test: `realtime-py/tests/test_disconnect.py` — 3 tests covering mid-call disconnect, pre-start disconnect, and between-turn disconnect. All pass.
 
-- FastAPI service entrypoint in `main.py`
-- OpenAI Realtime bridge in `app/server.py`
-- Transcript state, interruption handling, and persistence in `app/transcript.py`
-- WAV validation and 20 ms chunking in `app/audio.py`
-- Environment and prompt config in `app/config.py`
-- Fake local caller in `scripts/fake_call.py`
-- Real recorded audio fixtures:
-  - `fixtures/audio_1.wav`
-  - `fixtures/audio_2.wav`
-- Tests:
-  - `tests/test_audio.py`
-  - `tests/test_transcript.py`
+### Next.js (`realtime-nextjs/`)
+- `lib/calls.ts` — types, fetch helpers (`listCallIds`, `getCall`), and formatters (`parseCallIdDate`, `formatCallId`) for timestamp-based call IDs. Default `SERVER_URL` is `http://localhost:5050`.
+- `app/api/calls/route.ts` — proxies to Python `GET /calls`
+- `app/api/calls/[id]/route.ts` — proxies to Python `GET /calls/{call_id}`
+- `app/page.tsx` — client component, fetches call list on mount, two-panel layout (sidebar + transcript)
+- `components/call-list.tsx` — sidebar, formats timestamp call IDs into human-readable labels
+- `components/transcript-view.tsx` — fetches transcript on selection, renders bubbles + latency strip
+- `components/utterance-bubble.tsx` — agent left / user right, amber border + `interrupted` badge on cut turns
 
-## Current Behavior
+---
 
-- The service accepts a local fake caller over WebSocket at `/media-stream`
-- It forwards streamed PCM audio to OpenAI Realtime
-- It streams OpenAI audio back to the fake caller
-- It supports agent greeting first
-- It handles barge-in by truncating the active OpenAI response and marking the transcript entry interrupted
-- It persists aligned call transcripts to `data/calls/{call_id}.json`
-- It records per-turn latency metrics and per-turn latency events
+## Architecture
 
-## Important Files
+- **Python** owns: WebSocket bridge to OpenAI Realtime, transcript state + interruption handling, file persistence, REST read endpoints
+- **Next.js** owns: proxy API routes, UI
+- **No shared volume** — Next.js calls Python over HTTP via `SERVER_URL` env var (Docker: `http://realtime-py:5050`)
+- Python server runs on **port 5050** (set in `app/config.py`)
 
-- [PLAN.md](/Users/affan/Desktop/Work/real-time-voice-agent/PLAN.md)
-- [Readme.md](/Users/affan/Desktop/Work/real-time-voice-agent/speech-assistant-openai-realtime-api-python/Readme.md)
-- [app/server.py](/Users/affan/Desktop/Work/real-time-voice-agent/speech-assistant-openai-realtime-api-python/app/server.py)
-- [app/transcript.py](/Users/affan/Desktop/Work/real-time-voice-agent/speech-assistant-openai-realtime-api-python/app/transcript.py)
-- [app/realtime.py](/Users/affan/Desktop/Work/real-time-voice-agent/speech-assistant-openai-realtime-api-python/app/realtime.py)
-- [scripts/fake_call.py](/Users/affan/Desktop/Work/real-time-voice-agent/speech-assistant-openai-realtime-api-python/scripts/fake_call.py)
+---
 
-## Verified State
+## Current State
 
-- Python tests pass:
+### What works
+- Full voice pipeline: fake caller → Python → OpenAI Realtime → back
+- Barge-in with transcript truncation and `interrupted: true` flag
+- REST endpoints verified manually
+- Next.js UI renders call list, transcript bubbles, latency strip, interrupted markers
+- Timestamp-based call IDs formatted correctly in UI
+- Disconnect handling tested and verified (unit tests)
 
-```bash
-cd speech-assistant-openai-realtime-api-python && .venv/bin/python -m pytest -q
-```
+### Git state
+`realtime-py` appears to be tracked as normal files, not as a submodule. `realtime-nextjs/` is currently untracked and needs to be added before committing.
 
-- The live fake-call flow was run successfully with real audio fixtures and OpenAI Realtime
-- Transcript JSON now includes:
-  - `utterances`
-  - `metrics`
-  - `latency_events`
-- Interrupted agent turns are saved with truncated text plus a trailing `-`
+### What's left
+1. Add `realtime-nextjs/` to git before committing.
+2. Optional: add Docker for a cleaner demo.
+3. Optional: put verbose OpenAI event logging behind an env flag for a quieter final run.
+
+---
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `realtime-py/app/server.py` | FastAPI app — WebSocket bridge + REST endpoints |
+| `realtime-py/app/transcript.py` | CallSession, TranscriptStore, LatencyTracker |
+| `realtime-py/app/config.py` | Settings + SYSTEM_MESSAGE (voice output rules) |
+| `realtime-py/scripts/fake_call.py` | Fake caller for local testing |
+| `realtime-py/tests/test_disconnect.py` | Disconnect handling tests |
+| `realtime-nextjs/lib/calls.ts` | Types + fetch helpers + call ID formatter |
+| `realtime-nextjs/app/page.tsx` | Main page — two-panel shell |
+| `realtime-nextjs/components/` | call-list, transcript-view, utterance-bubble |
+
+---
 
 ## Notable Decisions
 
-- The fake caller is the telephony mock. OpenAI Realtime is real.
-- Audio fixtures are real spoken WAV files, not synthetic text-to-speech.
-- Runtime audio format is PCM 16-bit, 24 kHz, mono WAV locally, with base64 PCM frames over WebSocket.
-- The implementation intentionally keeps barge-in overlap in the transcript to reflect real detection/playback latency.
+- OpenAI Realtime API used as single-provider STT+LLM+TTS shortcut (no Deepgram/ElevenLabs)
+- PCM 16-bit 24kHz mono — matches OpenAI Realtime's native format, avoids transcoding
+- Barge-in overlap intentionally kept in transcript (realistic detection latency)
+- Call IDs are timestamp-based (`call-YYYYMMDDTHHMMSSXXXZ`) — UI parses and formats them
+- No auth, no multi-tenancy — out of scope per spec
 
-## Gaps / Follow-Up
+---
 
-- `PLAN.md` is stale in places and still reflects the original scaffold layout (`pyservice/*`) and older event naming. It should be updated if you want the checklist to match the implemented code.
-- The next product phase is not in the Python repo anymore; it is the TypeScript API + React UI from the assignment.
+## How to Run
+
+```bash
+# Python
+cd realtime-py && .venv/bin/uvicorn app.server:app --host 0.0.0.0 --port 5050 --reload
+
+# Fake call (separate terminal)
+cd realtime-py && .venv/bin/python scripts/fake_call.py
+
+# Next.js
+cd realtime-nextjs && npm run dev
+```
+
+To test disconnect: start both, wait for agent to finish at least one turn, then `Ctrl+C` the fake caller. Check `realtime-py/data/calls/<call-id>.json` for `"interrupted": true` on the last agent utterance.
+
+---
 
 ## Suggested Skills
 
-- `grill-with-docs` if you want to reconcile the remaining plan/docs language with the implemented behavior before moving on
-- `improve-codebase-architecture` if you want to clean up the Python module boundaries or reduce coupling before the next phase
-- `openai-docs` if you need to validate any OpenAI Realtime API details before building the next stage
+- `grill-with-docs` — verify README content against the spec PDF before submitting
+- `grill-me` — prep for the architecture questions in the evaluation (section 04 of the spec)
+- `improve-codebase-architecture` — if you want to tighten module boundaries before submission
+
+---
 
 ## Redactions
 
-- No secrets were copied into this handoff.
-- Any API key values remain in local environment files and are not included here.
+No secrets included. API keys remain in local `.env` files.
