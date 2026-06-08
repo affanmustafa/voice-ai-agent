@@ -243,9 +243,3 @@ The Next.js app uses these endpoints through its own `/api/calls` and `/api/demo
 ## Disconnects
 
 A normal `stop` event saves the transcript as complete. If the fake caller disconnects mid-call, the server saves a partial transcript and finalizes any active agent utterance with `interrupted: true`. OpenAI-side socket failures are logged and stop the loop, but that failure path is less complete than the client-disconnect path.
-
-## Checks
-
-```bash
-PYTHONPYCACHEPREFIX=/private/tmp/realtime-py-cache .venv/bin/python -m py_compile main.py app/*.py scripts/fake_call.py
-```
