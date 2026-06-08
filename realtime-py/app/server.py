@@ -154,6 +154,9 @@ async def handle_media_stream(websocket: WebSocket) -> None:
                         voice_to_voice_ms = data.get("voice_to_voice_ms")
                         if isinstance(voice_to_voice_ms, (int, float)):
                             session.set_voice_to_voice(int(voice_to_voice_ms))
+                        per_turn = data.get("voice_to_voice_per_turn")
+                        if isinstance(per_turn, list):
+                            session.set_voice_to_voice_per_turn(per_turn)
                         continue
 
                     if event == "stop":

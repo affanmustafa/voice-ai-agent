@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, NamedTuple, Optional
+from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
 import websockets
 
@@ -68,15 +68,20 @@ async def collect_server_events(
     stop: asyncio.Event,
     first_agent_audio: asyncio.Event,
     agent_done_events: asyncio.Queue,
-    marks: Dict[str, float],
+    turn_timers: List[Dict[str, Any]],
     on_event: Optional[Callable[[dict], None]] = None,
 ) -> None:
     async for message in ws:
         event = json.loads(message)
         event_name = event.get("event")
         if event_name == "media" and event.get("speaker") == "agent":
-            if "agent_heard" not in marks and "speech_end" in marks:
-                marks["agent_heard"] = time.monotonic()
+            # Fill agent_heard on the oldest turn still waiting for its reply.
+            # This pairs the first agent audio frame with the turn that just
+            # finished speaking, giving a per-turn voice-to-voice number.
+            for timer in turn_timers:
+                if timer.get("agent_heard") is None:
+                    timer["agent_heard"] = time.monotonic()
+                    break
             first_agent_audio.set()
         elif event_name == "agent_done":
             await agent_done_events.put(event)
@@ -113,7 +118,15 @@ async def run_fixture_call(
     stop = asyncio.Event()
     first_agent_audio = asyncio.Event()
     agent_done_events = asyncio.Queue()
-    marks: Dict[str, float] = {}
+    # One timer per user turn. The collector fills agent_heard for the oldest
+    # turn still waiting, pairing each turn's speech-end with its first agent
+    # audio frame -> a per-turn voice-to-voice number.
+    turn_timers: List[Dict[str, Any]] = []
+
+    def add_timer(turn_index: int, label: str, speech_end_time: float) -> None:
+        turn_timers.append(
+            {"turn_index": turn_index, "label": label, "speech_end": speech_end_time, "agent_heard": None}
+        )
 
     async with websockets.connect(uri) as ws:
         await ws.send(
@@ -126,11 +139,12 @@ async def run_fixture_call(
             )
         )
         collector = asyncio.create_task(
-            collect_server_events(ws, stop, first_agent_audio, agent_done_events, marks, on_event)
+            collect_server_events(ws, stop, first_agent_audio, agent_done_events, turn_timers, on_event)
         )
 
         current_ms = 100
         zero_result = await stream_turn(ws, zero_wav, current_ms)
+        add_timer(1, "menu_question", zero_result.speech_end_time)
         current_ms = zero_result.stream_end_ms
         zero_done = await wait_for_agent_done(
             agent_done_events,
@@ -142,8 +156,8 @@ async def run_fixture_call(
         first_agent_audio.clear()
 
         first_result = await stream_turn(ws, first_wav, current_ms)
+        add_timer(2, "order", first_result.speech_end_time)
         current_ms = first_result.stream_end_ms
-        marks["speech_end"] = first_result.speech_end_time
 
         try:
             await asyncio.wait_for(first_agent_audio.wait(), timeout=30)
@@ -151,25 +165,40 @@ async def run_fixture_call(
             if on_event:
                 on_event({"event": "demo_warning", "message": "timed out waiting for agent audio"})
 
-        if "speech_end" in marks and "agent_heard" in marks:
-            voice_to_voice_ms = int(round((marks["agent_heard"] - marks["speech_end"]) * 1000))
-            await ws.send(
-                json.dumps(
-                    {
-                        "event": "client_metric",
-                        "voice_to_voice_ms": voice_to_voice_ms,
-                    }
-                )
-            )
-            if on_event:
-                on_event({"event": "client_metric", "voice_to_voice_ms": voice_to_voice_ms})
-
         await asyncio.sleep(barge_in_delay_ms / 1000)
         current_ms += barge_in_delay_ms
         second_result = await stream_turn(ws, second_wav, current_ms)
+        add_timer(3, "barge_in", second_result.speech_end_time)
         current_ms = second_result.stream_end_ms
 
+        # Wait for the barge-in turn's reply to arrive before reporting.
         await asyncio.sleep(POST_SECOND_TURN_WAIT_MS / 1000)
+
+        per_turn = [
+            {
+                "turn_index": t["turn_index"],
+                "label": t["label"],
+                "voice_to_voice_ms": int(round((t["agent_heard"] - t["speech_end"]) * 1000)),
+            }
+            for t in turn_timers
+            if t.get("agent_heard") is not None
+        ]
+        # Call-level headline stays the order turn (turn 2), matching the metric
+        # reported in the README and shown in the UI.
+        call_level = next(
+            (p["voice_to_voice_ms"] for p in per_turn if p["turn_index"] == 2),
+            per_turn[0]["voice_to_voice_ms"] if per_turn else None,
+        )
+        if per_turn:
+            payload = {
+                "event": "client_metric",
+                "voice_to_voice_ms": call_level,
+                "voice_to_voice_per_turn": per_turn,
+            }
+            await ws.send(json.dumps(payload))
+            if on_event:
+                on_event(payload)
+
         await ws.send(json.dumps({"event": "stop"}))
         await stop.wait()
         collector.cancel()

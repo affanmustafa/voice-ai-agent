@@ -23,6 +23,16 @@ function LatencyPill({
 	);
 }
 
+// Average a metric across turns, ignoring missing values. Returns a rounded
+// integer, or null if no turn had the value.
+function average(values: Array<number | null | undefined>): number | null {
+	const present = values.filter(
+		(v): v is number => typeof v === 'number'
+	);
+	if (present.length === 0) return null;
+	return Math.round(present.reduce((a, b) => a + b, 0) / present.length);
+}
+
 export function TranscriptView({ callId }: { callId: string }) {
 	const [loadedCall, setLoadedCall] = useState<{
 		callId: string;
@@ -96,6 +106,19 @@ export function TranscriptView({ callId }: { callId: string }) {
 								)
 							: [];
 
+					// Per-turn voice-to-voice: each entry maps to a user turn in
+					// order, so match it to the Nth agent reply.
+					const agentReplyIndex =
+						u.speaker === 'agent'
+							? call.utterances
+									.slice(0, i + 1)
+									.filter((x) => x.speaker === 'agent').length - 1
+							: -1;
+					const v2vTurn =
+						u.speaker === 'agent'
+							? (call.voice_to_voice_per_turn ?? [])[agentReplyIndex]
+							: undefined;
+
 					return (
 						<UtteranceBubble
 							key={`${u.speaker}-${u.start_ms}-${i}`}
@@ -104,6 +127,12 @@ export function TranscriptView({ callId }: { callId: string }) {
 							previousSpeaker={previous?.speaker}
 							overlappedByNextMs={overlappedByNextMs}
 							toolCalls={toolCalls}
+							voiceToVoiceMs={v2vTurn?.voice_to_voice_ms}
+							latencyEvent={
+								u.speaker === 'agent'
+									? call.latency_events[agentReplyIndex]
+									: undefined
+							}
 						/>
 					);
 				})}
@@ -111,22 +140,35 @@ export function TranscriptView({ callId }: { callId: string }) {
 
 			<div className="border-t px-6 py-4">
 				<p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wide">
-					Latency (first turn)
+					Latency (average across turns)
 				</p>
 				<Separator className="mb-3" />
 				<div className="flex gap-6 flex-wrap">
 					<LatencyPill
 						label="Voice-to-voice"
-						value={call.metrics.voice_to_voice_ms}
+						value={average(
+							(call.voice_to_voice_per_turn ?? []).map(
+								(t) => t.voice_to_voice_ms
+							)
+						)}
 					/>
-					<LatencyPill label="STT" value={call.metrics.stt_first_final_ms} />
+					<LatencyPill
+						label="STT"
+						value={average(
+							call.latency_events.map((e) => e.stt_first_final_ms)
+						)}
+					/>
 					<LatencyPill
 						label="LLM first token"
-						value={call.metrics.llm_first_token_ms}
+						value={average(
+							call.latency_events.map((e) => e.llm_first_token_ms)
+						)}
 					/>
 					<LatencyPill
 						label="TTS first byte"
-						value={call.metrics.tts_first_byte_ms}
+						value={average(
+							call.latency_events.map((e) => e.tts_first_byte_ms)
+						)}
 					/>
 				</div>
 			</div>

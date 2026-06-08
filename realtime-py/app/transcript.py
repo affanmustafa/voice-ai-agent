@@ -74,9 +74,16 @@ class LatencyTracker:
     events: List[LatencyEvent] = field(default_factory=list)
     active_event: Optional[LatencyEvent] = None
     voice_to_voice_ms: Optional[int] = None
+    # Caller-observed voice-to-voice for every user turn (the call-level
+    # voice_to_voice_ms above is the order turn). Each entry: turn_index,
+    # label, voice_to_voice_ms.
+    voice_to_voice_per_turn: List[Dict[str, Any]] = field(default_factory=list)
 
     def set_voice_to_voice(self, voice_to_voice_ms: int) -> None:
         self.voice_to_voice_ms = voice_to_voice_ms
+
+    def set_voice_to_voice_per_turn(self, per_turn: List[Dict[str, Any]]) -> None:
+        self.voice_to_voice_per_turn = per_turn
 
     def mark_user_speech_end(self) -> LatencyEvent:
         self.active_event = LatencyEvent(
@@ -186,6 +193,9 @@ class CallSession:
     def set_voice_to_voice(self, voice_to_voice_ms: int) -> None:
         self.latency.set_voice_to_voice(voice_to_voice_ms)
 
+    def set_voice_to_voice_per_turn(self, per_turn: List[Dict[str, Any]]) -> None:
+        self.latency.set_voice_to_voice_per_turn(per_turn)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "call_id": self.call_id,
@@ -195,6 +205,7 @@ class CallSession:
             "utterances": [utterance.to_dict() for utterance in self.turn_store.to_utterances()],
             "metrics": self.latency.to_dict(),
             "latency_events": self.latency.events_to_list(),
+            "voice_to_voice_per_turn": self.latency.voice_to_voice_per_turn,
             "tool_calls": self.tool_calls,
         }
 

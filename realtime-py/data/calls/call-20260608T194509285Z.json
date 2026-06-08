@@ -1,0 +1,116 @@
+{
+  "call_id": "call-20260608T194509285Z",
+  "started_at": "2026-06-08T19:45:10.449750+00:00",
+  "model": "gpt-realtime",
+  "audio_format": "pcm16_24000_mono",
+  "utterances": [
+    {
+      "speaker": "user",
+      "text": "I'm in the mood for something spicy. What's available?",
+      "start_ms": 100,
+      "end_ms": 3940,
+      "item_id": "item_DoaCEmZLMPb4LFlicM64v"
+    },
+    {
+      "speaker": "agent",
+      "text": "We\u2019ve got Hot Wings, Zinger Burger, and the Mighty Bucket all in stock and spicy. What would you like to go with?",
+      "start_ms": 3920,
+      "end_ms": 10270,
+      "item_id": "item_DoaCJyTcCamRT3pRQwfQA",
+      "interrupted": false
+    },
+    {
+      "speaker": "user",
+      "text": "Hey, I want to place an order for a Zinger burger, some fries, and a Coke, please.",
+      "start_ms": 10570,
+      "end_ms": 15790,
+      "item_id": "item_DoaCLH5uLs9EylPe2Za4P"
+    }
+  ],
+  "metrics": {
+    "stt_first_final_ms": 808,
+    "llm_first_token_ms": 2182,
+    "tts_first_byte_ms": 2270,
+    "voice_to_voice_ms": 2272
+  },
+  "latency_events": [
+    {
+      "turn_index": 1,
+      "user_speech_end_clock_ms": 22378,
+      "stt_first_final_ms": 808,
+      "llm_first_token_ms": 2182,
+      "tts_first_byte_ms": 2270
+    },
+    {
+      "turn_index": 2,
+      "user_speech_end_clock_ms": 31713,
+      "stt_first_final_ms": 1802,
+      "llm_first_token_ms": null,
+      "tts_first_byte_ms": null
+    },
+    {
+      "turn_index": 3,
+      "user_speech_end_clock_ms": 67450,
+      "stt_first_final_ms": null,
+      "llm_first_token_ms": null,
+      "tts_first_byte_ms": null
+    }
+  ],
+  "voice_to_voice_per_turn": [
+    {
+      "turn_index": 1,
+      "label": "menu_question",
+      "voice_to_voice_ms": 2272
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "spicy"
+      },
+      "result": [
+        {
+          "name": "Hot Wings",
+          "price": 3.99,
+          "in_stock": true
+        },
+        {
+          "name": "Zinger Burger",
+          "price": 5.99,
+          "in_stock": true
+        },
+        {
+          "name": "Mighty Bucket",
+          "price": 14.99,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoaCEmZLMPb4LFlicM64v"
+    },
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "fries"
+      },
+      "result": [
+        {
+          "name": "Fries",
+          "price": 2.99,
+          "in_stock": true
+        },
+        {
+          "name": "Popcorn Chicken",
+          "price": 4.49,
+          "in_stock": true
+        },
+        {
+          "name": "Twister Wrap",
+          "price": 4.99,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoaCLH5uLs9EylPe2Za4P"
+    }
+  ]
+}

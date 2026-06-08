@@ -1,6 +1,6 @@
 'use client'
 
-import type { ToolCall, Utterance } from '@/lib/calls'
+import type { LatencyEvent, ToolCall, Utterance } from '@/lib/calls'
 
 export function formatMs(ms: number): string {
   const totalSec = ms / 1000
@@ -15,6 +15,8 @@ interface UtteranceBubbleProps {
   previousSpeaker?: Utterance['speaker']
   overlappedByNextMs: number
   toolCalls?: ToolCall[]
+  voiceToVoiceMs?: number
+  latencyEvent?: LatencyEvent
 }
 
 export function UtteranceBubble({
@@ -23,6 +25,8 @@ export function UtteranceBubble({
   previousSpeaker,
   overlappedByNextMs,
   toolCalls = [],
+  voiceToVoiceMs,
+  latencyEvent,
 }: UtteranceBubbleProps) {
   const isUser = utterance.speaker === 'user'
   const isInterrupted = utterance.interrupted === true
@@ -102,6 +106,26 @@ export function UtteranceBubble({
           {formatMs(utterance.start_ms)}-{formatMs(utterance.end_ms)}
         </span>
         <span className="font-mono">{durationMs} ms</span>
+        {latencyEvent?.stt_first_final_ms != null && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+            STT: {latencyEvent.stt_first_final_ms} ms
+          </span>
+        )}
+        {latencyEvent?.llm_first_token_ms != null && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+            LLM: {latencyEvent.llm_first_token_ms} ms
+          </span>
+        )}
+        {latencyEvent?.tts_first_byte_ms != null && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+            TTS: {latencyEvent.tts_first_byte_ms} ms
+          </span>
+        )}
+        {voiceToVoiceMs != null && (
+          <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800">
+            voice-to-voice: {voiceToVoiceMs} ms
+          </span>
+        )}
         {isBargeIn && (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
             Barge-in: {overlapMs} ms overlap

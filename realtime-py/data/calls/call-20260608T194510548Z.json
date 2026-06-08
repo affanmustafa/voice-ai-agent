@@ -1,82 +1,99 @@
 {
-  "call_id": "call-20260608T173609363Z",
-  "started_at": "2026-06-08T17:36:10.488180+00:00",
+  "call_id": "call-20260608T194510548Z",
+  "started_at": "2026-06-08T19:45:11.846231+00:00",
   "model": "gpt-realtime",
   "audio_format": "pcm16_24000_mono",
   "utterances": [
     {
       "speaker": "user",
-      "text": "I'm in the mood for something spicy. What's available?",
+      "text": "I'm in the mood for something spicy. So what's available?",
       "start_ms": 100,
       "end_ms": 3940,
-      "item_id": "item_DoYBOJ9FJZZpkKloSGdJT"
+      "item_id": "item_DoaCGxrjCGKXC1dihqZ9y"
     },
     {
       "speaker": "agent",
-      "text": "We\u2019ve got Hot Wings, Zinger Burger, and the Mighty Bucket all available if you're craving something spicy.",
+      "text": "Here are some spicy options: Hot Wings, the Zinger Burger, and the Mighty Bucket. What would you like to go with?",
       "start_ms": 3920,
-      "end_ms": 9670,
-      "item_id": "item_DoYBSWU6eoc8KJ49odnCS",
+      "end_ms": 10120,
+      "item_id": "item_DoaCKflft2Bdf09cOsL0I",
       "interrupted": false
     },
     {
       "speaker": "user",
-      "text": "Hey, I want to place an order for a Zinger Burger, some fries, and a Coke please.",
-      "start_ms": 9970,
-      "end_ms": 15190,
-      "item_id": "item_DoYBUTsLGb5ovrAorvk69"
+      "text": "Hey, I want to place an order for a Zinger Burger, some fries, and a Coke, please.",
+      "start_ms": 10420,
+      "end_ms": 15640,
+      "item_id": "item_DoaCMwokM8dEl7wSW260e"
     },
     {
       "speaker": "agent",
-      "text": "We\u2019ve got the Zinger Burger, fries,-",
-      "start_ms": 15170,
-      "end_ms": 16170,
-      "item_id": "item_DoYBdSkYMUmoCqahfmYMK",
+      "text": "Got it, the Zinger Burger,-",
+      "start_ms": 15620,
+      "end_ms": 16370,
+      "item_id": "item_DoaCVfvGLBaDswXcZgfVM",
       "interrupted": true
     },
     {
       "speaker": "user",
-      "text": "Actually scratch that. I want a chicken piece, fries, and a Coke now.",
-      "start_ms": 15490,
-      "end_ms": 20530,
-      "item_id": "item_DoYBelosc4Z5aHQqxW8LA"
+      "text": "Actually scratch that. I want a chicken piece, fries and a Coke now.",
+      "start_ms": 15940,
+      "end_ms": 20980,
+      "item_id": "item_DoaCWlxHCvOZYWHC9SZRM"
     },
     {
       "speaker": "agent",
-      "text": "The chicken piece is currently unavailable. We\u2019ve got Popcorn Chicken or Chicken Tenders as alternatives. Which one would you like?",
-      "start_ms": 20510,
-      "end_ms": 27210,
-      "item_id": "item_DoYBkq0mDuhablpR9iqXR",
+      "text": "The chicken piece is currently unavailable. How about trying the Popcorn Chicken or Chicken Tenders instead?",
+      "start_ms": 20960,
+      "end_ms": 26710,
+      "item_id": "item_DoaCdGCVlcOW8YeNOGyfx",
       "interrupted": false
     }
   ],
   "metrics": {
-    "stt_first_final_ms": 1092,
-    "llm_first_token_ms": 1537,
-    "tts_first_byte_ms": 1631,
-    "voice_to_voice_ms": 4227
+    "stt_first_final_ms": 1466,
+    "llm_first_token_ms": 1909,
+    "tts_first_byte_ms": 2009,
+    "voice_to_voice_ms": 4912
   },
   "latency_events": [
     {
       "turn_index": 1,
-      "user_speech_end_clock_ms": 268859,
-      "stt_first_final_ms": 1092,
-      "llm_first_token_ms": 1537,
-      "tts_first_byte_ms": 1631
+      "user_speech_end_clock_ms": 23642,
+      "stt_first_final_ms": 1466,
+      "llm_first_token_ms": 1909,
+      "tts_first_byte_ms": 2009
     },
     {
       "turn_index": 2,
-      "user_speech_end_clock_ms": 277097,
-      "stt_first_final_ms": 1253,
-      "llm_first_token_ms": 4118,
-      "tts_first_byte_ms": 4224
+      "user_speech_end_clock_ms": 32509,
+      "stt_first_final_ms": 1310,
+      "llm_first_token_ms": 4832,
+      "tts_first_byte_ms": 4910
     },
     {
       "turn_index": 3,
-      "user_speech_end_clock_ms": 286981,
-      "stt_first_final_ms": 1157,
-      "llm_first_token_ms": 1677,
-      "tts_first_byte_ms": 1771
+      "user_speech_end_clock_ms": 43145,
+      "stt_first_final_ms": 1531,
+      "llm_first_token_ms": 2057,
+      "tts_first_byte_ms": 2154
+    }
+  ],
+  "voice_to_voice_per_turn": [
+    {
+      "turn_index": 1,
+      "label": "menu_question",
+      "voice_to_voice_ms": 2011
+    },
+    {
+      "turn_index": 2,
+      "label": "order",
+      "voice_to_voice_ms": 4912
+    },
+    {
+      "turn_index": 3,
+      "label": "barge_in",
+      "voice_to_voice_ms": 2156
     }
   ],
   "tool_calls": [
@@ -102,7 +119,7 @@
           "in_stock": true
         }
       ],
-      "turn_item_id": "item_DoYBOJ9FJZZpkKloSGdJT"
+      "turn_item_id": "item_DoaCGxrjCGKXC1dihqZ9y"
     },
     {
       "name": "lookup_menu",
@@ -126,7 +143,7 @@
           "in_stock": true
         }
       ],
-      "turn_item_id": "item_DoYBUTsLGb5ovrAorvk69"
+      "turn_item_id": "item_DoaCMwokM8dEl7wSW260e"
     },
     {
       "name": "lookup_menu",
@@ -150,7 +167,7 @@
           "in_stock": true
         }
       ],
-      "turn_item_id": "item_DoYBUTsLGb5ovrAorvk69"
+      "turn_item_id": "item_DoaCMwokM8dEl7wSW260e"
     },
     {
       "name": "lookup_menu",
@@ -174,7 +191,7 @@
           "in_stock": true
         }
       ],
-      "turn_item_id": "item_DoYBUTsLGb5ovrAorvk69"
+      "turn_item_id": "item_DoaCMwokM8dEl7wSW260e"
     },
     {
       "name": "lookup_menu",
@@ -198,7 +215,7 @@
           "in_stock": true
         }
       ],
-      "turn_item_id": "item_DoYBelosc4Z5aHQqxW8LA"
+      "turn_item_id": "item_DoaCWlxHCvOZYWHC9SZRM"
     }
   ]
 }

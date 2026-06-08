@@ -1,0 +1,100 @@
+{
+  "call_id": "call-20260608T193736705Z",
+  "started_at": "2026-06-08T19:37:37.974396+00:00",
+  "model": "gpt-realtime",
+  "audio_format": "pcm16_24000_mono",
+  "utterances": [
+    {
+      "speaker": "user",
+      "text": "Um hey, so what's on the menu?",
+      "start_ms": 100,
+      "end_ms": 3580,
+      "item_id": "item_Doa4wQSfncOwhk0wMPMZZ"
+    },
+    {
+      "speaker": "agent",
+      "text": "Hi there! We\u2019ve got fried chicken meals, sandwiches, tenders, sides like fries and coleslaw, and drinks. What would you like?",
+      "start_ms": 3560,
+      "end_ms": 10360,
+      "item_id": "item_Doa4yBH6PgQ98c1PvH3LQ",
+      "interrupted": false
+    },
+    {
+      "speaker": "user",
+      "text": "Hey, I want to place an order for a Zinger Burger, some fries and a Coke please.",
+      "start_ms": 10660,
+      "end_ms": 15880,
+      "item_id": "item_Doa50Taen2I3rPr0mgPWu"
+    },
+    {
+      "speaker": "agent",
+      "text": "Sure, I\u2019ll get that started:-",
+      "start_ms": 15860,
+      "end_ms": 16860,
+      "item_id": "item_Doa56i6etNO4XPN8yefvv",
+      "interrupted": true
+    },
+    {
+      "speaker": "user",
+      "text": "Actually scratch that. I want a chicken piece, fries and a Coke now.",
+      "start_ms": 16180,
+      "end_ms": 21220,
+      "item_id": "item_Doa578GE8YNER3G9s8tKT"
+    },
+    {
+      "speaker": "agent",
+      "text": "Got it, a chicken piece, fries, and a Coke. Would you like original or spicy for the chicken?",
+      "start_ms": 21200,
+      "end_ms": 26600,
+      "item_id": "item_Doa5CsxV0Zt535n3WQ2Ck",
+      "interrupted": false
+    }
+  ],
+  "metrics": {
+    "stt_first_final_ms": 861,
+    "llm_first_token_ms": 527,
+    "tts_first_byte_ms": 615,
+    "voice_to_voice_ms": 998
+  },
+  "latency_events": [
+    {
+      "turn_index": 1,
+      "user_speech_end_clock_ms": 48363,
+      "stt_first_final_ms": 861,
+      "llm_first_token_ms": 527,
+      "tts_first_byte_ms": 615
+    },
+    {
+      "turn_index": 2,
+      "user_speech_end_clock_ms": 55860,
+      "stt_first_final_ms": 1006,
+      "llm_first_token_ms": 898,
+      "tts_first_byte_ms": 997
+    },
+    {
+      "turn_index": 3,
+      "user_speech_end_clock_ms": 62589,
+      "stt_first_final_ms": 986,
+      "llm_first_token_ms": 948,
+      "tts_first_byte_ms": 1033
+    }
+  ],
+  "voice_to_voice_per_turn": [
+    {
+      "turn_index": 1,
+      "label": "menu_question",
+      "voice_to_voice_ms": 615
+    },
+    {
+      "turn_index": 2,
+      "label": "order",
+      "voice_to_voice_ms": 998
+    },
+    {
+      "turn_index": 3,
+      "label": "barge_in",
+      "voice_to_voice_ms": 1035
+    }
+  ],
+  "tool_calls": []
+}

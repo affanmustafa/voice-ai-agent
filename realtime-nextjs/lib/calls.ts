@@ -38,6 +38,12 @@ export interface ToolCall {
 	turn_item_id?: string | null;
 }
 
+export interface VoiceToVoiceTurn {
+	turn_index: number;
+	label: string;
+	voice_to_voice_ms: number;
+}
+
 export interface Call {
 	call_id: string;
 	started_at: string;
@@ -46,6 +52,7 @@ export interface Call {
 	utterances: Utterance[];
 	metrics: CallMetrics;
 	latency_events: LatencyEvent[];
+	voice_to_voice_per_turn?: VoiceToVoiceTurn[];
 	tool_calls?: ToolCall[];
 }
 
