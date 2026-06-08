@@ -68,9 +68,22 @@ export function TranscriptView({ callId }: { callId: string }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
-        {call.utterances.map((u, i) => (
-          <UtteranceBubble key={`${u.speaker}-${u.start_ms}-${i}`} utterance={u} />
-        ))}
+        {call.utterances.map((u, i) => {
+          const previous = call.utterances[i - 1]
+          const next = call.utterances[i + 1]
+          const overlapMs = previous ? Math.max(0, previous.end_ms - u.start_ms) : 0
+          const overlappedByNextMs = next ? Math.max(0, u.end_ms - next.start_ms) : 0
+
+          return (
+            <UtteranceBubble
+              key={`${u.speaker}-${u.start_ms}-${i}`}
+              utterance={u}
+              overlapMs={overlapMs}
+              previousSpeaker={previous?.speaker}
+              overlappedByNextMs={overlappedByNextMs}
+            />
+          )
+        })}
       </div>
 
       <div className="border-t px-6 py-4">

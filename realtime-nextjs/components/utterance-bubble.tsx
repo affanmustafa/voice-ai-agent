@@ -9,10 +9,23 @@ export function formatMs(ms: number): string {
   return `${m}:${s}`
 }
 
-export function UtteranceBubble({ utterance }: { utterance: Utterance }) {
+interface UtteranceBubbleProps {
+  utterance: Utterance
+  overlapMs: number
+  previousSpeaker?: Utterance['speaker']
+  overlappedByNextMs: number
+}
+
+export function UtteranceBubble({
+  utterance,
+  overlapMs,
+  previousSpeaker,
+  overlappedByNextMs,
+}: UtteranceBubbleProps) {
   const isUser = utterance.speaker === 'user'
   const isInterrupted = utterance.interrupted === true
   const durationMs = Math.max(0, utterance.end_ms - utterance.start_ms)
+  const isBargeIn = isUser && previousSpeaker === 'agent' && overlapMs > 0
 
   return (
     <div className={`flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
@@ -31,7 +44,8 @@ export function UtteranceBubble({ utterance }: { utterance: Utterance }) {
         {isInterrupted && (
           <div className="mt-2 border-t border-amber-300/70 pt-2">
             <span className="text-xs font-medium text-amber-700">
-              cut off at {formatMs(utterance.end_ms)}
+              Interrupted at {formatMs(utterance.end_ms)}
+              {overlappedByNextMs > 0 ? ` · user overlapped ${overlappedByNextMs} ms` : ''}
             </span>
           </div>
         )}
@@ -47,6 +61,11 @@ export function UtteranceBubble({ utterance }: { utterance: Utterance }) {
           {formatMs(utterance.start_ms)}-{formatMs(utterance.end_ms)}
         </span>
         <span className="font-mono">{durationMs} ms</span>
+        {isBargeIn && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
+            Barge-in: {overlapMs} ms overlap
+          </span>
+        )}
       </div>
     </div>
   )
