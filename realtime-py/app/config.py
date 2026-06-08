@@ -48,7 +48,6 @@ class Settings:
     audio_channels: int
     audio_sample_width: int
     chunk_ms: int
-    silence_duration_ms: int
 
     def __init__(self) -> None:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
@@ -63,7 +62,6 @@ class Settings:
         self.audio_channels = 1
         self.audio_sample_width = 2
         self.chunk_ms = 20
-        self.silence_duration_ms = int(os.getenv("SILENCE_DURATION_MS", "400"))
 
 
 settings = Settings()

@@ -1,6 +1,6 @@
 # Realtime Voice Pipeline Demo - Python Service
 
-Python implementation of the voice-loop portion of the take-home. It replaces real telephony with a local fake caller that streams two WAV files over WebSocket, and uses OpenAI Realtime as the single speech-to-speech provider for STT, LLM, and TTS.
+Python implementation of the voice-loop portion of the take-home. It replaces real telephony with a local fake caller that streams three WAV files over WebSocket, and uses OpenAI Realtime as the single speech-to-speech provider for STT, LLM, and TTS.
 
 The companion Next.js app in `../realtime-nextjs` reads the saved transcripts through the HTTP endpoints exposed here.
 
@@ -8,25 +8,26 @@ The companion Next.js app in `../realtime-nextjs` reads the saved transcripts th
 
 - FastAPI WebSocket service at `/media-stream`
 - OpenAI Realtime WebSocket bridge using `gpt-realtime`
-- Local fake caller that streams `fixtures/audio_1.wav` and `fixtures/audio_2.wav`
+- Local fake caller that streams `fixtures/audio_0.wav`, `fixtures/audio_1.wav`, and `fixtures/audio_2.wav`
 - Barge-in handling with `conversation.item.truncate`
 - Aligned JSON transcript persistence under `data/calls/`
 - Per-turn latency metrics for STT final, LLM first token, TTS first byte, and voice-to-voice
-- REST endpoints: `GET /calls` and `GET /calls/{call_id}`
+- REST endpoints: `GET /calls`, `GET /calls/{call_id}`, and `POST /demo-call`
 
 ## Architecture
 
 ```text
 scripts/fake_call.py
-  -> waits for the agent greeting
   -> streams WAV chunks in real time
-  -> sends user_turn_start / media / user_turn_end events
+  -> sends user_turn_start / media / user_turn_end events from fixture boundaries
 
 app/server.py
   -> accepts fake caller WebSocket
   -> forwards audio frames to OpenAI Realtime
+  -> commits each WAV turn and requests the response immediately at user_turn_end
   -> forwards streamed agent audio back to the caller
   -> cuts off agent audio on barge-in
+  -> can trigger the same fixture demo through POST /demo-call
 
 app/transcript.py
   -> tracks user and agent utterances
@@ -44,8 +45,8 @@ app/realtime.py      # OpenAI Realtime protocol helpers
 app/transcript.py    # Transcript state, interruption handling, latency metrics
 app/audio.py         # WAV validation and frame chunking
 app/config.py        # Environment config and system prompt
-scripts/fake_call.py # Local caller that streams the two WAV files
-tests/               # Disconnect behavior tests
+app/fake_client.py   # Shared fixture-call runner used by API and script
+scripts/fake_call.py # Local caller that streams the WAV fixture files
 ```
 
 ## Real Vs Mocked
@@ -60,8 +61,8 @@ Real:
 Mocked:
 
 - Telephony provider. Twilio/SIP is replaced by `scripts/fake_call.py`.
-- Caller timing. The fake caller decides when `audio_1.wav` starts, when `audio_2.wav` barges in, and when the call stops.
-- Production endpointing. For deterministic local testing, each WAV boundary is treated as a user turn and committed to OpenAI at `user_turn_end`.
+- Caller timing. The fake caller decides when `audio_0.wav`, `audio_1.wav`, and `audio_2.wav` start.
+- Production endpointing. The demo uses prerecorded WAV fixture boundaries instead of VAD over a live microphone or phone-provider stream.
 
 The assignment allows mocked providers. This implementation keeps real speech-to-speech model behavior while mocking telephony so the transcript-alignment behavior is easy to run locally.
 
@@ -96,9 +97,11 @@ Set `OPENAI_API_KEY` in `.env`.
 
 The service starts on `http://localhost:5050`.
 
-## Run The Fake Call
+## Run The Demo Call
 
-In a second terminal:
+From the Next.js UI, click `Run demo`. The button calls `POST /api/demo-call` in Next.js, which proxies to Python `POST /demo-call`. Python then streams `fixtures/audio_0.wav`, `fixtures/audio_1.wav`, and `fixtures/audio_2.wav` through the same local WebSocket path used by the script, saves the transcript, and the UI refreshes to show the new call.
+
+You can still run the same demo from a second terminal:
 
 ```bash
 .venv/bin/python scripts/fake_call.py
@@ -106,14 +109,13 @@ In a second terminal:
 
 The fake caller streams:
 
+- `fixtures/audio_0.wav`
 - `fixtures/audio_1.wav`
 - `fixtures/audio_2.wav`
 
-By default, the agent greets first like a customer-support call. The fake caller waits for that greeting to finish before streaming `audio_1.wav`.
+The first turn waits for the agent response to finish, then the second turn starts. The third turn waits until the next agent audio chunk is observed, then starts shortly afterward. When the fake caller sends `user_turn_start` during active agent output, the service stops forwarding agent audio, sends a truncate event to OpenAI, and records the agent utterance as interrupted.
 
-The second turn waits until the next agent audio chunk is observed, then starts shortly afterward. When the fake caller's local user-start signal arrives during agent output, the service stops forwarding agent audio, sends a truncate event to OpenAI, and records the agent utterance as interrupted.
-
-To change how quickly the second recording interrupts the agent:
+To change how quickly the second recording interrupts the agent (the default is 300):
 
 ```bash
 .venv/bin/python scripts/fake_call.py --barge-in-delay-ms 500
@@ -233,16 +235,17 @@ The fake caller reads the WAV container, validates the format, slices raw PCM in
 ```bash
 curl http://localhost:5050/calls
 curl http://localhost:5050/calls/{call_id}
+curl -X POST http://localhost:5050/demo-call
 ```
 
-The Next.js app uses these endpoints through its own `/api/calls` proxy routes.
+The Next.js app uses these endpoints through its own `/api/calls` and `/api/demo-call` proxy routes.
 
 ## Disconnects
 
 A normal `stop` event saves the transcript as complete. If the fake caller disconnects mid-call, the server saves a partial transcript and finalizes any active agent utterance with `interrupted: true`. OpenAI-side socket failures are logged and stop the loop, but that failure path is less complete than the client-disconnect path.
 
-## Tests
+## Checks
 
 ```bash
-PYTHONPYCACHEPREFIX=/private/tmp/realtime-py-cache .venv/bin/python -m pytest -q
+PYTHONPYCACHEPREFIX=/private/tmp/realtime-py-cache .venv/bin/python -m py_compile main.py app/*.py scripts/fake_call.py
 ```

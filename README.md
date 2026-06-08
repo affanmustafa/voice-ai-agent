@@ -54,29 +54,23 @@ Mocked:
 - Caller timing. The fake caller decides when each WAV starts and when the third recording begins.
 - Production endpointing. The demo uses prerecorded WAV fixture boundaries instead of VAD over a live microphone or phone-provider stream.
 
-The assignment allows either OpenAI Realtime as a single-provider shortcut or a chained STT -> LLM -> TTS pipeline. This implementation chooses OpenAI Realtime because it is faster to integrate and keeps the local service simpler while still exercising the important realtime behaviors: streaming input audio, streaming output audio, interruption, transcript alignment, and latency measurement.
-
-## Out Of Scope
-
-This demo intentionally does not include real telephony, SIP setup, Twilio integration, production deployment, authentication, multi-tenancy, or high-concurrency operation. The assignment focuses on the realtime loop, barge-in behavior, latency instrumentation, and a clear UI for reviewing the resulting call.
+This implementation chooses OpenAI Realtime because it is faster to integrate and keeps the local service simpler while still exercising the important realtime behaviors: streaming input audio, streaming output audio, interruption, transcript alignment, and latency measurement.
 
 ## Audio Format
 
 Input fixtures are WAV files in `realtime-py/fixtures/`. The default fake call uses:
 
-- `audio_0.wav`
+- `audio_0.wav`: "What's on the menu?"
 - `audio_1.wav`: "Hey, I want to place an order for a Zinger burger, some fries, and a Coke, please."
 - `audio_2.wav`: "Actually, scratch that. I want a chicken piece, fries, and a Coke now."
 
-The files are prerecorded caller audio, but they are not sent as text. At runtime the fake caller reads the WAV files and streams their audio frames in real time over the local WebSocket.
+**Note:** These files were prerecorded but they are still sent as audio frames in real time over the wss connection.
 
 The required fixture format is:
 
 - PCM 16-bit
 - 24 kHz
 - mono
-
-At runtime the fake caller reads the WAV container, validates the format, slices the raw PCM into 20 ms frames, base64-encodes each frame, and sends those frames over WebSocket. OpenAI Realtime is configured for `audio/pcm` at 24 kHz, so the service does not transcode during the call.
 
 PCM was chosen because the caller audio clips were recorded on local devices and exported to high-fidelity PCM WAV files. Since this demo does not wire up real SIP or telephony, there is no need to add a mu-law conversion path. Mu-law is mostly useful at a phone-provider boundary; for example, providers like Twilio commonly use it for telephony audio streams.
 
@@ -94,18 +88,61 @@ The transcript intentionally keeps small overlap and delay of 200ms between the 
 
 ## Latency
 
-Latency is measured with `time.monotonic()` inside the Python process and saved under both `metrics` and `latency_events`.
+All four metrics the brief asks for are instrumented. **Numbers below are the average of 10 local runs** against `gpt-realtime`, measured over localhost (no real telephony, mic, or speaker in the loop).
 
-- `stt_first_final_ms`: user turn end -> final user transcript event
-- `llm_first_token_ms`: user turn end -> first streamed agent transcript delta
-- `tts_first_byte_ms`: user turn end -> first streamed agent audio bytes
-- `voice_to_voice_ms`: user turn end -> first agent audio bytes sent back to caller
+| Metric                     | Avg        | Min | Max  |
+| -------------------------- | ---------- | --- | ---- |
+| STT first-final            | 910 ms     | 753 | 1061 |
+| LLM first-token            | 656 ms     | 485 | 874  |
+| TTS first-byte             | 776 ms     | 563 | 1042 |
+| **Voice-to-voice (total)** | **834 ms** | 565 | 1209 |
 
-The implementation streams frames as they arrive and does not wait for `response.done` before forwarding audio.
+**How each is measured.** All timing uses `time.monotonic()`. The three pipeline stages are measured **server-side**, each as an offset from one zero-point — the moment the user's turn ends (`user_speech_end_clock_ms`):
 
-Final latency results should be reported from the selected demo run set before submission. The values should come directly from the generated transcript JSON files under `realtime-py/data/calls/`.
+- **`stt_first_final_ms`** — user-turn-end → the final user transcript event from OpenAI.
+- **`llm_first_token_ms`** — user-turn-end → the first streamed agent transcript delta (first "word").
+- **`tts_first_byte_ms`** — user-turn-end → the first streamed agent **audio** byte arriving from OpenAI.
 
-The latency-friendly choices in this implementation are small 20 ms audio chunks, no full-response buffering, immediate forwarding of OpenAI `response.output_audio.delta` frames, explicit barge-in cancellation, no tool calls in the voice loop, and a short KFC ordering prompt.
+**`voice_to_voice_ms`** is measured differently and deliberately: it's taken **at the caller**, not the server. The fake caller stamps the moment it _finishes streaming_ the user audio and the moment it _receives the first agent audio frame back_ over the WebSocket; the difference is the voice-to-voice total. This is the closest honest proxy for what a real caller would feel, because it includes the full round-trip rather than stopping at the server's outbound edge. It's a **call-level** number (measured once, on the first turn), so it lives in the top-level `metrics`; the per-turn `latency_events` array carries only the three server-side stages, which are genuinely measured every turn.
+
+## Latency Improvements Made and The Async Problem
+
+**Note:** The latency analysis is written below. This section talks about some findings and improvements that were made iteratively.
+
+In the earlier version, I was handling the transcript flow sequentially where after a user WAV finished, it would wait for OpenAI's final transcription event before treating the turn as complete and rendering/saving the result.
+
+1. user WAV finishes
+2. wait for OpenAI's final transcription event
+3. save the transcription
+4. continue with agent response flow
+
+This was an easier implementation and kept things smooth but had impacts on the latency.
+
+After reading some more, I came across recommendations written in some blogs, most notably [Tuning Latency and Accuracy](https://developers.openai.com/api/docs/guides/realtime-transcription#tune-latency-and-accuracy).
+
+Now, when the user WAV finishes, we immediately send the `input_audio_buffer.committed` event and and `response.create`. This means the assistant can start generating the response right away.
+
+However, this created a separate problem too, noted in the OpenAI docs as: "Ordering between completion events from different speech turns isn’t guaranteed. Use `item_id` to match transcription events to committed input items." This was observed where the transcript showed the agent and user messages in the wrong order despite the timestamps in ms being correct (barge in etc).
+
+<img src="assets/out-of-order-events.png" alt="out of order events" width="720" />
+
+To handle this, I added a `TurnStore`. The `TurnStore` keeps the final transcript organized. Instead of appending transcript rows directly whenever an OpenAI event arrives, the service first groups related events into a local `Turn`.
+
+#### TurnStore Limitations
+
+Currently, all call state stays in memory until it is saved. This can be fine for short calls but for scalable production use, we would need to persist the call state to a database. Maching is done via `item_id` through a hash map.
+
+## What I'd build next (another day)
+
+**Note:** Right now, `turn_detection` is set to `None`. This has a mocked setup where the `user_turn_end` events are sent manually to mimic the real-time behavior. I did try server VAD earlier but it was turned off because the prerecorded audio files already give clean boundaries which makes it simpler for the mock.
+
+The thing I'd most want to get right and invest time in is deciding when the user has finished talking and optimizing _that_ with latency. When experimenting with server VAD turned on, I noticed that the `silence_duration_ms` decides when a turn is over. This is fair and works for most purposes but as someone with a little bit a stutter in the speech, I realized that this timer cannot safely tell whether the user is thinking or is actually done talking. And upon research, realised that this is a problem faced by many people even non-native speakers.
+
+So turning on flat server VAD, while can be a safe window for this problem, it does mean that this window will be static regardless. Therefore, a better approach can be semantic VAD where it runs a classifier over the words to judge if the utterance is complete. So a sentence that trails off into "ummm…" gets more time automatically and my experience with chatGPT voice mode has been quite similar to this as well where even somewhat long pauses don't prompt the model to start talking and interrupt what I am saying.
+
+This would require further experimentation but if there is a little bit of a compromise on latency enough that the users do not get interrupted too early, this could be a good trade-off.
+
+Therefore, for what I would build next is iterate on this and monitor the results with real audio integrations.
 
 ## Disconnect Behavior
 
@@ -185,13 +222,13 @@ Python exposes:
 
 - `GET http://localhost:5050/calls`
 - `GET http://localhost:5050/calls/{call_id}`
-- `POST http://localhost:5050/demo-call`
+- `POST http://localhost:5050/demo-call` launches a new instance of mocked audio with barge-in
 
 Next.js proxies:
 
 - `GET http://localhost:3000/api/calls`
 - `GET http://localhost:3000/api/calls/{call_id}`
-- `POST http://localhost:3000/api/demo-call`
+- `POST http://localhost:3000/api/demo-call` launches a new instance of mocked audio with barge-in
 
 ## Transcript Shape
 
@@ -199,66 +236,4 @@ Transcript files are saved as timestamp-based IDs, for example:
 
 ```text
 realtime-py/data/calls/call-20260607T191735726Z.json
-```
-
-Example:
-
-```json
-{
-	"call_id": "call-20260608T012442114Z",
-	"started_at": "2026-06-08T01:24:43.299692+00:00",
-	"audio_format": "pcm16_24000_mono",
-	"utterances": [
-		{
-			"speaker": "user",
-			"text": "Hey, I want to place an order for a Zinger burger, some fries, and a coke, please.",
-			"start_ms": 1000,
-			"end_ms": 6220
-		},
-		{
-			"speaker": "agent",
-			"text": "Sure, I can help with that-",
-			"start_ms": 6200,
-			"end_ms": 6950,
-			"interrupted": true
-		},
-		{
-			"speaker": "user",
-			"text": "Actually, scratch that. I want a chicken piece, fries, and a Coke now.",
-			"start_ms": 6420,
-			"end_ms": 11460
-		},
-		{
-			"speaker": "agent",
-			"text": "Got it, one chicken piece, fries, and a Coke. What size fries and Coke would you like?",
-			"start_ms": 11440,
-			"end_ms": 16840,
-			"interrupted": false
-		}
-	],
-	"metrics": {
-		"stt_first_final_ms": 814,
-		"llm_first_token_ms": 1435,
-		"tts_first_byte_ms": 1523,
-		"voice_to_voice_ms": 1523
-	},
-	"latency_events": [
-		{
-			"turn_index": 1,
-			"user_speech_end_clock_ms": 366900,
-			"stt_first_final_ms": 814,
-			"llm_first_token_ms": 1435,
-			"tts_first_byte_ms": 1523,
-			"voice_to_voice_ms": 1523
-		},
-		{
-			"turn_index": 2,
-			"user_speech_end_clock_ms": 374065,
-			"stt_first_final_ms": 824,
-			"llm_first_token_ms": 1449,
-			"tts_first_byte_ms": 1523,
-			"voice_to_voice_ms": 1523
-		}
-	]
-}
 ```

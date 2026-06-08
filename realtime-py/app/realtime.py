@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from app.config import SYSTEM_MESSAGE, settings
 
@@ -12,8 +12,6 @@ LOG_EVENT_TYPES = {
     "response.output_audio_transcript.done",
     "conversation.item.input_audio_transcription.completed",
     "input_audio_buffer.committed",
-    "input_audio_buffer.speech_stopped",
-    "input_audio_buffer.speech_started",
     "session.created",
     "session.updated",
 }
@@ -43,10 +41,6 @@ def _sanitize_for_log(value: Any) -> Any:
     return value
 
 
-def log_openai_event(direction: str, event: Dict[str, Any]) -> None:
-    print(f"{direction} {json.dumps(_sanitize_for_log(event), ensure_ascii=False, separators=(',', ':'))}")
-
-
 def session_update_event() -> Dict[str, Any]:
     return {
         "type": "session.update",
@@ -61,7 +55,7 @@ def session_update_event() -> Dict[str, Any]:
                         "rate": settings.audio_sample_rate,
                     },
                     "transcription": {
-                        "model": "gpt-4o-mini-transcribe",
+                        "model": "gpt-realtime-whisper",
                         "language": "en",
                     },
                     "turn_detection": None,
@@ -81,7 +75,6 @@ def session_update_event() -> Dict[str, Any]:
 
 async def initialize_session(openai_ws: Any) -> None:
     event = session_update_event()
-    log_openai_event("OpenAI ->", event)
     await openai_ws.send(json.dumps(event))
 
 
@@ -92,40 +85,18 @@ async def send_truncate(openai_ws: Any, item_id: str, audio_end_ms: int) -> None
         "content_index": 0,
         "audio_end_ms": max(0, audio_end_ms),
     }
-    log_openai_event("OpenAI ->", event)
     await openai_ws.send(json.dumps(event))
 
 
-async def send_text_user_turn(openai_ws: Any, text: str) -> None:
-    create_event = {
-        "type": "conversation.item.create",
-        "item": {
-            "type": "message",
-            "role": "user",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": text,
-                }
-            ],
-        },
-    }
-    response_event = {"type": "response.create"}
-    log_openai_event("OpenAI ->", create_event)
-    await openai_ws.send(json.dumps(create_event))
-    log_openai_event("OpenAI ->", response_event)
-    await openai_ws.send(json.dumps(response_event))
+async def cancel_response(openai_ws: Any) -> None:
+    event = {"type": "response.cancel"}
+    await openai_ws.send(json.dumps(event))
 
 
 async def commit_audio_user_turn(openai_ws: Any) -> None:
     event = {"type": "input_audio_buffer.commit"}
-    log_openai_event("OpenAI ->", event)
     await openai_ws.send(json.dumps(event))
 
 
-async def request_response(openai_ws: Any, instructions: Optional[str] = None) -> None:
-    event: Dict[str, Any] = {"type": "response.create"}
-    if instructions:
-        event["response"] = {"instructions": instructions}
-    log_openai_event("OpenAI ->", event)
-    await openai_ws.send(json.dumps(event))
+async def request_response(openai_ws: Any) -> None:
+    await openai_ws.send(json.dumps({"type": "response.create"}))
