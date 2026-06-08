@@ -29,7 +29,7 @@ realtime-nextjs/
 
 #### Order of operations
 
-![Events arrive async](assets/first_events_arrive.png)
+<img src="assets/first_events_arrive.png" alt="events arrive async" width="720" />
 
 The core realtime path is:
 
