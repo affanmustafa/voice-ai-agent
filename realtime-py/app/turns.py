@@ -120,6 +120,23 @@ class TurnStore:
     def active_agent_item_id(self) -> Optional[str]:
         return self.active_agent.agent_item_id if self.active_agent else None
 
+    def current_turn_item_id(self) -> Optional[str]:
+        """The user item_id of the turn currently being answered.
+
+        Used to tag tool calls so the UI can attach them to the agent reply
+        that belongs to the same turn. At tool-call time the agent hasn't
+        spoken yet, so the user item is the stable anchor; the agent reply for
+        this turn carries no item_id link, but it renders right after the user
+        turn, so the UI groups by user item_id.
+        """
+        if self.awaiting_agent_turns:
+            return self.awaiting_agent_turns[0].user_item_id
+        if self.active_agent:
+            return self.active_agent.user_item_id
+        if self.turns:
+            return self.turns[-1].user_item_id
+        return None
+
     def active_agent_audio_ms(self) -> int:
         return self.active_agent.agent_audio_ms if self.active_agent else 0
 

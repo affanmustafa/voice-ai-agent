@@ -25,6 +25,19 @@ export interface CallMetrics {
 	voice_to_voice_ms: number | null;
 }
 
+export interface MenuResultItem {
+	name: string;
+	price: number;
+	in_stock: boolean;
+}
+
+export interface ToolCall {
+	name: string;
+	arguments: Record<string, unknown>;
+	result: MenuResultItem[];
+	turn_item_id?: string | null;
+}
+
 export interface Call {
 	call_id: string;
 	started_at: string;
@@ -33,6 +46,7 @@ export interface Call {
 	utterances: Utterance[];
 	metrics: CallMetrics;
 	latency_events: LatencyEvent[];
+	tool_calls?: ToolCall[];
 }
 
 export function parseCallIdDate(callId: string): Date | null {

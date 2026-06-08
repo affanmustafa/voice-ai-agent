@@ -101,6 +101,15 @@ All four metrics the brief asks for are instrumented. **Numbers below are the av
 
 **`voice_to_voice_ms`** is measured differently and deliberately: it's taken **at the caller**, not the server. The fake caller stamps the moment it _finishes streaming_ the user audio and the moment it _receives the first agent audio frame back_ over the WebSocket; the difference is the voice-to-voice total. This is the closest honest proxy for what a real caller would feel, because it includes the full round-trip rather than stopping at the server's outbound edge. It's a **call-level** number (measured once, on the first turn), so it lives in the top-level `metrics`; the per-turn `latency_events` array carries only the three server-side stages, which are genuinely measured every turn.
 
+#### Results with tool calling
+
+In the last 5 messages, there is a tool call being done after the first user message, hence the `voice_to_voice_ms` is slightly higher. In production grade, this would be resolved by adding "preambles" in the agent's system prompt. An example like:
+
+```text
+# Tools
+- Before any tool call, say one short line like “I’m checking that now.” Then call the tool immediately.
+```
+
 ## Latency Improvements Made and The Async Problem
 
 **Note:** The latency analysis is written below. This section talks about some findings and improvements that were made iteratively.
@@ -140,6 +149,26 @@ This would require further experimentation but if there is a little bit of a com
 
 Therefore, for what I would build next is iterate on this and monitor the results with real audio integrations.
 
+## Bonus: RAG + Function Calling (menu lookup)
+
+For the optional extra, I combined the RAG step and a function-calling tool into one feature: a `lookup_menu` tool the agent calls mid-call, backed by retrieval over a hardcoded KFC menu in `menu_rag.py`.
+This is a minimal RAG call over the word "spicy".
+
+**How it works:**
+
+1. The tool `lookup_menu({query})` is declared in the session (`tools` array in `session.update`).
+2. When the customer mentions an item, the model emits a `function_call`. The server runs the retrieval, returns the result via `function_call_output`, and asks the model to respond — the full round-trip.
+3. The retrieval (the RAG step) lives in `app/menu_rag.py`: each menu line is embedded once at startup (`text-embedding-3-small`), the vectors are held in a plain in-memory list, and `search()` embeds the query and returns the top-k items by cosine similarity. Each item carries `name`, `price`, and `in_stock`.
+4. A strict prompt rule makes the agent call `lookup_menu` before confirming any item and only confirm in-stock items, offering an alternative otherwise.
+
+When the user said _"I'm in the mood for something spicy"_, the tool was called with `query='spicy'` and the in-memory search returned the three spicy items:
+
+```
+TOOL lookup_menu(query='spicy') -> [Hot Wings, Zinger Burger, Mighty Bucket]   (all in stock)
+```
+
+**Note:** The tool calls are saved in the transcript JSON as well and, consequently, rendered in the NextJS UI as well. Under each chat bubble.
+
 ## Disconnect Behavior
 
 On a normal `stop` event, Python saves the transcript as complete. If the fake caller WebSocket disconnects mid-call, the server finalizes the partial call, marks any active agent utterance as interrupted, saves the transcript JSON with whatever data exists, and closes the OpenAI-side WebSocket. If the OpenAI-side WebSocket fails first, the service logs the failure and stops the loop; that path is a known limitation compared with the client-disconnect path.
@@ -159,6 +188,7 @@ Optional:
 - `OPENAI_REALTIME_MODEL`: defaults to `gpt-realtime`
 - `HOST`: defaults to `0.0.0.0`
 - `PORT`: defaults to `5050`
+- `TOOL_CALL_ENABLED`: defaults to `false`. The RAG menu-lookup tool is opt-in, so the baseline latency numbers exclude its round-trip. When `true`, the `lookup_menu` tool and its prompt rules are added to the session, the menu embeddings are built at startup, and the fake caller's first turn uses `fixtures/audio_0-tool-call.wav` instead of `audio_0.wav` so the recorded query actually triggers a lookup.
   Example `realtime-py/.env`:
 
 ```bash

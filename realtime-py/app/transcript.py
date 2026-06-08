@@ -77,7 +77,6 @@ class LatencyTracker:
 
     def set_voice_to_voice(self, voice_to_voice_ms: int) -> None:
         self.voice_to_voice_ms = voice_to_voice_ms
-        print(f"LATENCY voice_to_voice_ms={voice_to_voice_ms}")
 
     def mark_user_speech_end(self) -> LatencyEvent:
         self.active_event = LatencyEvent(
@@ -85,11 +84,6 @@ class LatencyTracker:
             user_speech_end_clock_ms=now_ms(),
         )
         self.events.append(self.active_event)
-        print(
-            "LATENCY "
-            f"turn_index={self.active_event.turn_index} "
-            f"user_end_clock_ms={self.active_event.user_speech_end_clock_ms}"
-        )
         return self.active_event
 
     def mark_stt_final(self, event: Optional[LatencyEvent] = None) -> None:
@@ -97,36 +91,18 @@ class LatencyTracker:
         if event and event.stt_first_final_ms is None and event.user_speech_end_clock_ms is not None:
             event_clock_ms = now_ms()
             event.stt_first_final_ms = event_clock_ms - event.user_speech_end_clock_ms
-            print(
-                "LATENCY "
-                f"turn_index={event.turn_index} "
-                f"stt_final_clock_ms={event_clock_ms} "
-                f"stt_first_final_ms={event.stt_first_final_ms}"
-            )
 
     def mark_llm_first_token(self, event: Optional[LatencyEvent] = None) -> None:
         event = event or self.active_event
         if event and event.llm_first_token_ms is None and event.user_speech_end_clock_ms is not None:
             event_clock_ms = now_ms()
             event.llm_first_token_ms = event_clock_ms - event.user_speech_end_clock_ms
-            print(
-                "LATENCY "
-                f"turn_index={event.turn_index} "
-                f"llm_first_token_clock_ms={event_clock_ms} "
-                f"llm_first_token_ms={event.llm_first_token_ms}"
-            )
 
     def mark_tts_first_byte(self, event: Optional[LatencyEvent] = None) -> None:
         event = event or self.active_event
         if event and event.tts_first_byte_ms is None and event.user_speech_end_clock_ms is not None:
             event_clock_ms = now_ms()
             event.tts_first_byte_ms = event_clock_ms - event.user_speech_end_clock_ms
-            print(
-                "LATENCY "
-                f"turn_index={event.turn_index} "
-                f"tts_first_byte_clock_ms={event_clock_ms} "
-                f"tts_first_byte_ms={event.tts_first_byte_ms}"
-            )
 
     def to_dict(self) -> Dict[str, Optional[int]]:
         if not self.events:
@@ -156,12 +132,23 @@ class CallSession:
     latest_client_timestamp_ms: int = 0
     stream_id: Optional[str] = None
     latency: LatencyTracker = field(default_factory=LatencyTracker)
+    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     turn_store: Any = field(init=False)
 
     def __post_init__(self) -> None:
         from app.turns import TurnStore
 
         self.turn_store = TurnStore(latency=self.latency)
+
+    def record_tool_call(self, name: str, arguments: Dict[str, Any], result: Any) -> None:
+        self.tool_calls.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "result": result,
+                "turn_item_id": self.turn_store.current_turn_item_id(),
+            }
+        )
 
     def update_client_timestamp(self, timestamp_ms: int) -> None:
         self.latest_client_timestamp_ms = max(self.latest_client_timestamp_ms, timestamp_ms)
@@ -208,6 +195,7 @@ class CallSession:
             "utterances": [utterance.to_dict() for utterance in self.turn_store.to_utterances()],
             "metrics": self.latency.to_dict(),
             "latency_events": self.latency.events_to_list(),
+            "tool_calls": self.tool_calls,
         }
 
 

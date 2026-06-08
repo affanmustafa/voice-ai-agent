@@ -1,0 +1,204 @@
+{
+  "call_id": "call-20260608T175305689Z",
+  "started_at": "2026-06-08T17:53:06.945627+00:00",
+  "model": "gpt-realtime",
+  "audio_format": "pcm16_24000_mono",
+  "utterances": [
+    {
+      "speaker": "user",
+      "text": "I'm in the mood for something spicy. What's available?",
+      "start_ms": 100,
+      "end_ms": 3940,
+      "item_id": "item_DoYRnKpFR85tlBY0VuSZF"
+    },
+    {
+      "speaker": "agent",
+      "text": "We\u2019ve got Hot Wings, Zinger Burger, and the Mighty Bucket, all with a spicy kick. What would you like?",
+      "start_ms": 3920,
+      "end_ms": 9520,
+      "item_id": "item_DoYRrBWfwMt0PCf3pL0mR",
+      "interrupted": false
+    },
+    {
+      "speaker": "user",
+      "text": "Hey, I want to place an order for a Zinger Burger, some fries, and a Coke, please.",
+      "start_ms": 9820,
+      "end_ms": 15040,
+      "item_id": "item_DoYRtKzR4W9HsbOAXjX0p"
+    },
+    {
+      "speaker": "agent",
+      "text": "We\u2019ve got the Z-",
+      "start_ms": 15020,
+      "end_ms": 15520,
+      "item_id": "item_DoYS5YEgGcgj3nUYW5Xou",
+      "interrupted": true
+    },
+    {
+      "speaker": "user",
+      "text": "Actually scratch that. I want a chicken piece, fries and a Coke now.",
+      "start_ms": 15340,
+      "end_ms": 20380,
+      "item_id": "item_DoYS6Kr6U9rupKELbdvnd"
+    },
+    {
+      "speaker": "agent",
+      "text": "The chicken piece is currently unavailable. Would you like to try Popcorn Chicken or Chicken Tenders instead?",
+      "start_ms": 20360,
+      "end_ms": 26310,
+      "item_id": "item_DoYSDOxgfYdBs1MwlSpJS",
+      "interrupted": false
+    }
+  ],
+  "metrics": {
+    "stt_first_final_ms": 955,
+    "llm_first_token_ms": 2521,
+    "tts_first_byte_ms": 2758,
+    "voice_to_voice_ms": 6699
+  },
+  "latency_events": [
+    {
+      "turn_index": 1,
+      "user_speech_end_clock_ms": 7437,
+      "stt_first_final_ms": 955,
+      "llm_first_token_ms": 2521,
+      "tts_first_byte_ms": 2758
+    },
+    {
+      "turn_index": 2,
+      "user_speech_end_clock_ms": 16898,
+      "stt_first_final_ms": 990,
+      "llm_first_token_ms": 6590,
+      "tts_first_byte_ms": 6696
+    },
+    {
+      "turn_index": 3,
+      "user_speech_end_clock_ms": 29314,
+      "stt_first_final_ms": 1504,
+      "llm_first_token_ms": 2422,
+      "tts_first_byte_ms": 2529
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "spicy"
+      },
+      "result": [
+        {
+          "name": "Hot Wings",
+          "price": 3.99,
+          "in_stock": true
+        },
+        {
+          "name": "Zinger Burger",
+          "price": 5.99,
+          "in_stock": true
+        },
+        {
+          "name": "Mighty Bucket",
+          "price": 14.99,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoYRnKpFR85tlBY0VuSZF"
+    },
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "Zinger Burger"
+      },
+      "result": [
+        {
+          "name": "Zinger Burger",
+          "price": 5.99,
+          "in_stock": true
+        },
+        {
+          "name": "BBQ Chicken Burger",
+          "price": 6.49,
+          "in_stock": true
+        },
+        {
+          "name": "Twister Wrap",
+          "price": 4.99,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoYRtKzR4W9HsbOAXjX0p"
+    },
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "fries"
+      },
+      "result": [
+        {
+          "name": "Fries",
+          "price": 2.99,
+          "in_stock": true
+        },
+        {
+          "name": "Popcorn Chicken",
+          "price": 4.49,
+          "in_stock": true
+        },
+        {
+          "name": "Twister Wrap",
+          "price": 4.99,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoYRtKzR4W9HsbOAXjX0p"
+    },
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "Coke"
+      },
+      "result": [
+        {
+          "name": "Coke",
+          "price": 1.99,
+          "in_stock": true
+        },
+        {
+          "name": "Strawberry Milkshake",
+          "price": 3.49,
+          "in_stock": false
+        },
+        {
+          "name": "Coleslaw",
+          "price": 1.79,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoYRtKzR4W9HsbOAXjX0p"
+    },
+    {
+      "name": "lookup_menu",
+      "arguments": {
+        "query": "chicken piece"
+      },
+      "result": [
+        {
+          "name": "Chicken Piece",
+          "price": 2.49,
+          "in_stock": false
+        },
+        {
+          "name": "Popcorn Chicken",
+          "price": 4.49,
+          "in_stock": true
+        },
+        {
+          "name": "Chicken Tenders",
+          "price": 5.49,
+          "in_stock": true
+        }
+      ],
+      "turn_item_id": "item_DoYS6Kr6U9rupKELbdvnd"
+    }
+  ]
+}

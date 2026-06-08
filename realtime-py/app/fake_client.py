@@ -12,7 +12,9 @@ from app.transcript import generate_call_id
 
 
 CALL_URI = f"ws://localhost:{settings.port}/media-stream"
-ZERO_WAV = settings.fixture_dir / "audio_0.wav"
+ZERO_WAV = settings.fixture_dir / (
+    "audio_0-tool-call.wav" if settings.tool_call_enabled else "audio_0.wav"
+)
 FIRST_WAV = settings.fixture_dir / "audio_1.wav"
 SECOND_WAV = settings.fixture_dir / "audio_2.wav"
 POST_SECOND_TURN_WAIT_MS = 5000

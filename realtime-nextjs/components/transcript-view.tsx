@@ -89,6 +89,13 @@ export function TranscriptView({ callId }: { callId: string }) {
 						? Math.max(0, u.end_ms - next.start_ms)
 						: 0;
 
+					const toolCalls =
+						u.speaker === 'agent' && previous?.speaker === 'user'
+							? (call.tool_calls ?? []).filter(
+									(tc) => tc.turn_item_id === previous.item_id
+								)
+							: [];
+
 					return (
 						<UtteranceBubble
 							key={`${u.speaker}-${u.start_ms}-${i}`}
@@ -96,6 +103,7 @@ export function TranscriptView({ callId }: { callId: string }) {
 							overlapMs={overlapMs}
 							previousSpeaker={previous?.speaker}
 							overlappedByNextMs={overlappedByNextMs}
+							toolCalls={toolCalls}
 						/>
 					);
 				})}

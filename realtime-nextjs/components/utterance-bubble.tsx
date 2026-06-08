@@ -1,6 +1,6 @@
 'use client'
 
-import type { Utterance } from '@/lib/calls'
+import type { ToolCall, Utterance } from '@/lib/calls'
 
 export function formatMs(ms: number): string {
   const totalSec = ms / 1000
@@ -14,6 +14,7 @@ interface UtteranceBubbleProps {
   overlapMs: number
   previousSpeaker?: Utterance['speaker']
   overlappedByNextMs: number
+  toolCalls?: ToolCall[]
 }
 
 export function UtteranceBubble({
@@ -21,6 +22,7 @@ export function UtteranceBubble({
   overlapMs,
   previousSpeaker,
   overlappedByNextMs,
+  toolCalls = [],
 }: UtteranceBubbleProps) {
   const isUser = utterance.speaker === 'user'
   const isInterrupted = utterance.interrupted === true
@@ -50,6 +52,45 @@ export function UtteranceBubble({
           </div>
         )}
       </div>
+      {toolCalls.length > 0 && (
+        <div className="max-w-[76%] w-full flex flex-col gap-1.5">
+          {toolCalls.map((tc, idx) => {
+            const query =
+              typeof tc.arguments?.query === 'string' ? tc.arguments.query : ''
+            return (
+              <div
+                key={`${tc.name}-${idx}`}
+                className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs"
+              >
+                <div className="flex items-center gap-1.5 text-violet-700">
+                  <span className="font-mono font-semibold">{tc.name}</span>
+                  {query && (
+                    <span className="font-mono text-violet-500">
+                      ({JSON.stringify(query)})
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {tc.result.map((item, ri) => (
+                    <span
+                      key={`${item.name}-${ri}`}
+                      className={[
+                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium',
+                        item.in_stock
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-rose-100 text-rose-800',
+                      ].join(' ')}
+                    >
+                      {item.name} · ${item.price.toFixed(2)}
+                      {item.in_stock ? '' : ' · out of stock'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
       <div
         className={[
           'flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-xs text-muted-foreground',

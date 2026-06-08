@@ -34,6 +34,13 @@ SYSTEM_MESSAGE = """
 - Spell out numbers and acronyms as spoken words. For example, say one hundred thirty thousand dollars instead of $130,000, and A P I instead of API.
 """.strip()
 
+# Add this in the SYSTEM_MESSAGE if tool calling is to be enabled.
+TOOL_CALL_MESSAGE = """
+## Menu & Ordering Rules:
+- For ANY item the customer wants to order or asks about, you MUST call the lookup_menu tool first. Do not rely on memory for prices or availability.
+- Only confirm an item if the tool says it is in stock.
+- If the tool says an item is out of stock, tell the customer it is currently unavailable and briefly offer an in-stock alternative.
+""".strip()
 
 class Settings:
     openai_api_key: str
@@ -48,10 +55,12 @@ class Settings:
     audio_channels: int
     audio_sample_width: int
     chunk_ms: int
+    tool_call_enabled: bool
 
     def __init__(self) -> None:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_model = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
+        self.tool_call_enabled = os.getenv("TOOL_CALL_ENABLED", "false").strip().lower() == "true"
         self.voice = "marin"
         self.temperature = 0.8
         self.host = os.getenv("HOST", "0.0.0.0")

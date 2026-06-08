@@ -1,0 +1,83 @@
+{
+  "call_id": "call-20260608T175120224Z",
+  "started_at": "2026-06-08T17:51:21.345988+00:00",
+  "model": "gpt-realtime",
+  "audio_format": "pcm16_24000_mono",
+  "utterances": [
+    {
+      "speaker": "user",
+      "text": "Um hey, so what's on the menu?",
+      "start_ms": 100,
+      "end_ms": 3580,
+      "item_id": "item_DoYQ5428gYel6OWukOAIs"
+    },
+    {
+      "speaker": "agent",
+      "text": "Sure, we\u2019ve got classics like original recipe chicken, extra crispy tenders, sandwiches, sides like mashed potatoes, and drinks. What are you craving?",
+      "start_ms": 3560,
+      "end_ms": 12160,
+      "item_id": "item_DoYQ8EDE0YeyyTHEIkQT4",
+      "interrupted": false
+    },
+    {
+      "speaker": "user",
+      "text": "Hey, I want to place an order for a Zinger Burger, some fries and a Coke please.",
+      "start_ms": 12460,
+      "end_ms": 17680,
+      "item_id": "item_DoYQAzCaHjPVtv9UAk4xR"
+    },
+    {
+      "speaker": "agent",
+      "text": "Got it, a Zinger burger,-",
+      "start_ms": 17660,
+      "end_ms": 18410,
+      "item_id": "item_DoYQGH6nVW7GH71feOHw1",
+      "interrupted": true
+    },
+    {
+      "speaker": "user",
+      "text": "Actually scratch that. I want a chicken piece, fries and a Coke now.",
+      "start_ms": 17980,
+      "end_ms": 23020,
+      "item_id": "item_DoYQHwrZV4aBlrqqZCdUD"
+    },
+    {
+      "speaker": "agent",
+      "text": "No problem, one chicken piece, fries, and a Coke. What size for the fries and drink?",
+      "start_ms": 23000,
+      "end_ms": 28350,
+      "item_id": "item_DoYQMkeEYCVwc0W4lg2yf",
+      "interrupted": false
+    }
+  ],
+  "metrics": {
+    "stt_first_final_ms": 959,
+    "llm_first_token_ms": 654,
+    "tts_first_byte_ms": 908,
+    "voice_to_voice_ms": 784
+  },
+  "latency_events": [
+    {
+      "turn_index": 1,
+      "user_speech_end_clock_ms": 82752,
+      "stt_first_final_ms": 959,
+      "llm_first_token_ms": 654,
+      "tts_first_byte_ms": 908
+    },
+    {
+      "turn_index": 2,
+      "user_speech_end_clock_ms": 90705,
+      "stt_first_final_ms": 965,
+      "llm_first_token_ms": 681,
+      "tts_first_byte_ms": 781
+    },
+    {
+      "turn_index": 3,
+      "user_speech_end_clock_ms": 97175,
+      "stt_first_final_ms": 980,
+      "llm_first_token_ms": 702,
+      "tts_first_byte_ms": 789
+    }
+  ],
+  "tool_calls": []
+}

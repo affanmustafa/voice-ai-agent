@@ -7,7 +7,9 @@ from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.websockets import WebSocketDisconnect
 
+from app.config import settings
 from app.fake_client import run_fixture_call
+from app.menu_rag import menu_index
 from app.realtime import (
     LOG_EVENT_TYPES,
     cancel_response,
@@ -16,6 +18,7 @@ from app.realtime import (
     openai_headers,
     realtime_url,
     request_response,
+    send_function_call_output,
     send_truncate,
 )
 from app.transcript import CallSession, TranscriptStore, generate_call_id
@@ -23,6 +26,22 @@ from app.transcript import CallSession, TranscriptStore, generate_call_id
 
 app = FastAPI(title="Realtime Voice Pipeline Demo")
 store = TranscriptStore()
+
+
+@app.on_event("startup")
+async def build_menu_index() -> None:
+    # Only build the menu embeddings when tool calling is enabled. When off, the
+    # tool isn't declared, so the model can't call it and the index is unused.
+    if not settings.tool_call_enabled:
+        return
+    # Embed the menu once at boot so the first lookup_menu call mid-conversation
+    # doesn't pay the embedding latency. Failures here are non-fatal: search()
+    # will lazily rebuild on first use.
+    try:
+        await asyncio.to_thread(menu_index.build)
+        print("Menu RAG index built.")
+    except Exception as exc:
+        print(f"Menu RAG index build deferred (will retry on first use): {exc}")
 
 
 @app.get("/calls", response_class=JSONResponse)
@@ -162,8 +181,6 @@ async def handle_media_stream(websocket: WebSocket) -> None:
 
                     event = json.loads(openai_message)
                     event_type = event.get("type")
-                    if event_type in LOG_EVENT_TYPES:
-                        print(f"Realtime event: {event_type}")
 
                     if not session:
                         continue
@@ -221,6 +238,28 @@ async def handle_media_stream(websocket: WebSocket) -> None:
                                 "end_ms": end_ms,
                             }
                         )
+                        continue
+
+                    if event_type == "response.done":
+                        # The model may emit a function_call instead of audio.
+                        # Run the RAG lookup, return the result, and ask it to
+                        # respond again so it speaks the answer.
+                        outputs = (event.get("response") or {}).get("output") or []
+                        for item in outputs:
+                            if item.get("type") != "function_call" or item.get("name") != "lookup_menu":
+                                continue
+                            call_id = item.get("call_id")
+                            try:
+                                args = json.loads(item.get("arguments") or "{}")
+                            except json.JSONDecodeError:
+                                args = {}
+                            query = args.get("query", "")
+                            # Embeddings call is blocking I/O; keep the event loop free.
+                            results = await asyncio.to_thread(menu_index.search, query, 3)
+                            print(f"TOOL lookup_menu(query={query!r}) -> {results}")
+                            session.record_tool_call("lookup_menu", args, results)
+                            await send_function_call_output(openai_ws, call_id, {"items": results})
+                            await request_response(openai_ws)
                         continue
             except Exception as exc:
                 if not stop_event.is_set():
