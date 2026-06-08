@@ -8,6 +8,21 @@
 - Model: `gpt-realtime`
 - Transcription: `gpt-realtime-whisper`
 
+## How To Run The App
+
+The simplest way to run this is via Docker. For that, you need 2 envs in the `realtime-py` directory.
+
+```bash
+cp .env.example .env
+# set OPENAI_API_KEY in .env
+# optionally set TOOL_CALL_ENABLED to true
+docker compose up
+```
+
+This will start the Python service and the Next.js app. This will start the NextJS app at `http://localhost:3000`.
+
+Click `Run demo` in the sidebar to trigger the same WAV fixture call from the UI. The button calls Next.js `POST /api/demo-call`, which proxies to Python `POST /demo-call`. When the Python service finishes streaming the three WAV files and saves the transcript, the UI refreshes the call list and selects the new call.
+
 ## Architecture
 
 ```text
@@ -174,73 +189,6 @@ TOOL lookup_menu(query='spicy') -> [Hot Wings, Zinger Burger, Mighty Bucket]   (
 On a normal `stop` event, Python saves the transcript as complete. If the fake caller WebSocket disconnects mid-call, the server finalizes the partial call, marks any active agent utterance as interrupted, saves the transcript JSON with whatever data exists, and closes the OpenAI-side WebSocket. If the OpenAI-side WebSocket fails first, the service logs the failure and stops the loop; that path is a known limitation compared with the client-disconnect path.
 
 This means a mid-call browser/client failure should not lose all call data. The live stream ends, but the partial transcript remains available for the Next.js UI to load through the Python HTTP endpoints.
-
-## Environment
-
-Python reads environment variables from `realtime-py/.env`.
-
-Required:
-
-- `OPENAI_API_KEY`: OpenAI API key used by the Realtime WebSocket connection.
-
-Optional:
-
-- `OPENAI_REALTIME_MODEL`: defaults to `gpt-realtime`
-- `HOST`: defaults to `0.0.0.0`
-- `PORT`: defaults to `5050`
-- `TOOL_CALL_ENABLED`: defaults to `false`. The RAG menu-lookup tool is opt-in, so the baseline latency numbers exclude its round-trip. When `true`, the `lookup_menu` tool and its prompt rules are added to the session, the menu embeddings are built at startup, and the fake caller's first turn uses `fixtures/audio_0-tool-call.wav` instead of `audio_0.wav` so the recorded query actually triggers a lookup.
-  Example `realtime-py/.env`:
-
-```bash
-OPENAI_API_KEY=your_api_key
-OPENAI_REALTIME_MODEL=gpt-realtime
-HOST=127.0.0.1
-PORT=5050
-```
-
-Next.js reads `realtime-nextjs/.env`.
-
-Required when Python is not running at the default URL:
-
-- `SERVER_URL`: base URL for the Python API. Defaults to `http://localhost:5050`.
-
-Example `realtime-nextjs/.env`:
-
-```bash
-SERVER_URL=http://localhost:5050
-```
-
-## Run
-
-Python service:
-
-```bash
-cd realtime-py
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-cp .env.example .env
-# set OPENAI_API_KEY in .env
-.venv/bin/python main.py
-```
-
-Fake call in another terminal:
-
-```bash
-cd realtime-py
-.venv/bin/python scripts/fake_call.py
-```
-
-Next.js UI:
-
-```bash
-cd realtime-nextjs
-npm install
-npm run dev
-```
-
-Open `http://localhost:3000`. The Python service should be running on `http://localhost:5050`. If needed, set `SERVER_URL=http://localhost:5050` for the Next.js process.
-
-Click `Run demo` in the sidebar to trigger the same WAV fixture call from the UI. The button calls Next.js `POST /api/demo-call`, which proxies to Python `POST /demo-call`. When the Python service finishes streaming the three WAV files and saves the transcript, the UI refreshes the call list and selects the new call.
 
 ## API
 

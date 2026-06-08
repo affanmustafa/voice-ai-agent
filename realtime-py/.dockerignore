@@ -1,0 +1,8 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.env
+data/calls/*.json
+*.md
+.DS_Store

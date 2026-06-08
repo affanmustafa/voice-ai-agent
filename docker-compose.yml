@@ -1,0 +1,26 @@
+services:
+  api:
+    build: ./realtime-py
+    ports:
+      - "5050:5050"
+    environment:
+      # Bind to all interfaces so the web container can reach it.
+      HOST: 0.0.0.0
+      PORT: 5050
+      # Secrets / config come from realtime-py/.env (see env_file below).
+    env_file:
+      - ./realtime-py/.env
+    volumes:
+      # Persist saved call transcripts across restarts.
+      - ./realtime-py/data/calls:/app/data/calls
+
+  web:
+    build: ./realtime-nextjs
+    ports:
+      - "3000:3000"
+    environment:
+      # Next.js (server-side) talks to the Python service by its compose
+      # service name on the internal network, not localhost.
+      SERVER_URL: http://api:5050
+    depends_on:
+      - api
