@@ -5,6 +5,8 @@
 - `realtime-py/`: FastAPI service, fake WAV caller, OpenAI Realtime bridge, transcript persistence
 - `realtime-nextjs/`: Next.js app, API proxy routes, demo trigger button, transcript UI
 - Storage: JSON files under `realtime-py/data/calls/`
+- Model: `gpt-realtime`
+- Transcription: `gpt-realtime-whisper`
 
 ## Architecture
 
@@ -31,13 +33,7 @@ realtime-nextjs/
 
 <img src="assets/first_events_arrive.png" alt="events arrive async" width="720" />
 
-The core realtime path is:
-
-```text
-WAV fixture client -> FastAPI WebSocket -> OpenAI Realtime -> streamed audio deltas -> fake caller
-```
-
-The Python / TypeScript split is deliberate. Python owns the realtime audio loop, OpenAI Realtime WebSocket, barge-in handling, transcript persistence, and latency instrumentation because that is the timing-sensitive part of the system. Next.js owns the demo and review surface: it can trigger the local fixture call, list saved calls, fetch transcript JSON through API proxy routes, and make timestamps and interruptions visible for demo and debugging.
+Python owns the realtime audio loop, OpenAI Realtime WebSocket, barge-in handling, transcript persistence, and latency instrumentation because that is the timing-sensitive part of the system. Next.js owns the demo and review surface: it can trigger the local fixture call, list saved calls, fetch transcript JSON through API proxy routes, and make timestamps and interruptions visible for demo and debugging.
 
 ## Real Vs Mocked
 
@@ -120,11 +116,11 @@ This was an easier implementation and kept things smooth but had impacts on the 
 
 After reading some more, I came across recommendations written in some blogs, most notably [Tuning Latency and Accuracy](https://developers.openai.com/api/docs/guides/realtime-transcription#tune-latency-and-accuracy).
 
-Now, when the user WAV finishes, we immediately send the `input_audio_buffer.committed` event and and `response.create`. This means the assistant can start generating the response right away.
+Now, when the user WAV finishes, we immediately send `input_audio_buffer.commit` and `response.create`. This means the assistant can start generating the response right away. OpenAI replies with the `input_audio_buffer.committed` event, which carries the `item_id` we use to match events to turns.
 
 However, this created a separate problem too, noted in the OpenAI docs as: "Ordering between completion events from different speech turns isn’t guaranteed. Use `item_id` to match transcription events to committed input items." This was observed where the transcript showed the agent and user messages in the wrong order despite the timestamps in ms being correct (barge in etc).
 
-<img src="assets/out-of-order-events.png" alt="out of order events" width="720" />
+<img src="assets/out-of-order.png" alt="out of order" width="720" />
 
 To handle this, I added a `TurnStore`. The `TurnStore` keeps the final transcript organized. Instead of appending transcript rows directly whenever an OpenAI event arrives, the service first groups related events into a local `Turn`.
 
