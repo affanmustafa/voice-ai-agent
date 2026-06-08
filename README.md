@@ -3,29 +3,41 @@
 ## Stack
 
 - `realtime-py/`: FastAPI service, fake WAV caller, OpenAI Realtime bridge, transcript persistence
-- `realtime-nextjs/`: Next.js app, API proxy routes, transcript UI
+- `realtime-nextjs/`: Next.js app, API proxy routes, demo trigger button, transcript UI
 - Storage: JSON files under `realtime-py/data/calls/`
 
 ## Architecture
 
 ```text
 realtime-py/scripts/fake_call.py
-  -> streams audio_1.wav and audio_2.wav as timed 20 ms PCM frames
-  -> sends user_turn_start / media / user_turn_end events
+  -> streams audio_0.wav, audio_1.wav, and audio_2.wav as timed 20 ms PCM frames
+  -> sends user_turn_start / media / user_turn_end events from fixture boundaries
 
 realtime-py/app/server.py
   -> accepts the fake caller WebSocket at /media-stream
   -> forwards audio frames to OpenAI Realtime
+  -> commits each WAV turn and requests the response immediately at user_turn_end
   -> streams agent audio frames back to the caller
   -> handles barge-in and writes aligned transcripts
-  -> exposes GET /calls and GET /calls/{call_id}
+  -> exposes GET /calls, GET /calls/{call_id}, and POST /demo-call
 
 realtime-nextjs/
-  -> proxies GET /api/calls and GET /api/calls/[id] to Python
+  -> proxies GET /api/calls, GET /api/calls/[id], and POST /api/demo-call to Python
+  -> provides a Run demo button that triggers the fixture call without a terminal script
   -> renders the transcript as chat bubbles with timings and interruption markers
 ```
 
-The Python / TypeScript split is deliberate. Python owns the realtime audio loop and transcript alignment because that is the timing-sensitive part. Next.js owns the read-only transcript API proxy and UI because the frontend only needs saved call records, not direct audio-stream access.
+#### Order of operations
+
+![Events arrive async](assets/first_events_arrive.png)
+
+The core realtime path is:
+
+```text
+WAV fixture client -> FastAPI WebSocket -> OpenAI Realtime -> streamed audio deltas -> fake caller
+```
+
+The Python / TypeScript split is deliberate. Python owns the realtime audio loop, OpenAI Realtime WebSocket, barge-in handling, transcript persistence, and latency instrumentation because that is the timing-sensitive part of the system. Next.js owns the demo and review surface: it can trigger the local fixture call, list saved calls, fetch transcript JSON through API proxy routes, and make timestamps and interruptions visible for demo and debugging.
 
 ## Real Vs Mocked
 
@@ -39,14 +51,26 @@ Real:
 Mocked:
 
 - Telephony. There is no Twilio/SIP provider; `scripts/fake_call.py` is the caller.
-- Caller timing. The fake caller decides when each WAV starts and when the second user turn barges in.
-- Production endpointing. Each WAV file boundary is treated as a deterministic user turn.
+- Caller timing. The fake caller decides when each WAV starts and when the third recording begins.
+- Production endpointing. The demo uses prerecorded WAV fixture boundaries instead of VAD over a live microphone or phone-provider stream.
 
-This implementation uses OpenAI Realtime as the single-provider shortcut instead of a mock STT -> LLM -> TTS chain. The trade-off is less control over internal provider stages, but much more realistic transcription and generated speech while keeping the local architecture small.
+The assignment allows either OpenAI Realtime as a single-provider shortcut or a chained STT -> LLM -> TTS pipeline. This implementation chooses OpenAI Realtime because it is faster to integrate and keeps the local service simpler while still exercising the important realtime behaviors: streaming input audio, streaming output audio, interruption, transcript alignment, and latency measurement.
+
+## Out Of Scope
+
+This demo intentionally does not include real telephony, SIP setup, Twilio integration, production deployment, authentication, multi-tenancy, or high-concurrency operation. The assignment focuses on the realtime loop, barge-in behavior, latency instrumentation, and a clear UI for reviewing the resulting call.
 
 ## Audio Format
 
-Input fixtures are WAV files containing:
+Input fixtures are WAV files in `realtime-py/fixtures/`. The default fake call uses:
+
+- `audio_0.wav`
+- `audio_1.wav`: "Hey, I want to place an order for a Zinger burger, some fries, and a Coke, please."
+- `audio_2.wav`: "Actually, scratch that. I want a chicken piece, fries, and a Coke now."
+
+The files are prerecorded caller audio, but they are not sent as text. At runtime the fake caller reads the WAV files and streams their audio frames in real time over the local WebSocket.
+
+The required fixture format is:
 
 - PCM 16-bit
 - 24 kHz
@@ -54,21 +78,19 @@ Input fixtures are WAV files containing:
 
 At runtime the fake caller reads the WAV container, validates the format, slices the raw PCM into 20 ms frames, base64-encodes each frame, and sends those frames over WebSocket. OpenAI Realtime is configured for `audio/pcm` at 24 kHz, so the service does not transcode during the call.
 
-PCM was chosen over mu-law because this demo does not use a telephony provider. Mu-law is common at an 8 kHz phone boundary, but it reduces fidelity and would add unnecessary conversion here. MP3 is also avoided at runtime because it is compressed and would need decoding before streaming.
-
-If this service were connected to a real phone provider or SIP trunk, mu-law would be a reasonable boundary format because many telephony streams use 8 kHz audio. In this demo, telephony is mocked by `fake_call.py`, so PCM is simpler and closer to the WAV fixtures and OpenAI Realtime input format.
+PCM was chosen because the caller audio clips were recorded on local devices and exported to high-fidelity PCM WAV files. Since this demo does not wire up real SIP or telephony, there is no need to add a mu-law conversion path. Mu-law is mostly useful at a phone-provider boundary; for example, providers like Twilio commonly use it for telephony audio streams.
 
 ## Barge-In
 
-The second WAV starts while the agent is speaking. When the service receives `user_turn_start` during an active agent utterance, it:
+The second order-change WAV starts while the agent is speaking. When the fake caller sends `user_turn_start` during an active agent utterance, the service treats that as barge-in and:
 
 - stops forwarding agent audio immediately
-- sends `conversation.item.truncate` to OpenAI Realtime with the played audio offset
-- sends a `clear` event back to the fake caller
+- sends `conversation.item.truncate` to OpenAI Realtime with the played audio offset (`send_truncate` in `realtime.py`)
+- sends a `clear` event back to the fake caller (`websocket.send_json({"event": "clear", "reason": "barge_in"})` in `server.py`)
 - finalizes only the agent text/audio that was actually played
 - writes `interrupted: true` and appends `-` to the cut-off text
 
-The transcript intentionally keeps small overlap between the interrupted agent turn and the next user turn. That mirrors real detection/playback latency.
+The transcript intentionally keeps small overlap and delay of 200ms between the interrupted agent turn and the next user turn. That mirrors real detection/playback latency.
 
 ## Latency
 
@@ -81,11 +103,15 @@ Latency is measured with `time.monotonic()` inside the Python process and saved 
 
 The implementation streams frames as they arrive and does not wait for `response.done` before forwarding audio.
 
-These are honest runtime measurements and are above the 800 ms industry target. The goal here is the streaming architecture and instrumentation, not hitting production-grade latency in a local take-home demo.
+Final latency results should be reported from the selected demo run set before submission. The values should come directly from the generated transcript JSON files under `realtime-py/data/calls/`.
+
+The latency-friendly choices in this implementation are small 20 ms audio chunks, no full-response buffering, immediate forwarding of OpenAI `response.output_audio.delta` frames, explicit barge-in cancellation, no tool calls in the voice loop, and a short KFC ordering prompt.
 
 ## Disconnect Behavior
 
-On a normal `stop` event, Python saves the transcript as complete. If the fake caller WebSocket disconnects mid-call, the server saves the partial transcript and marks any active agent utterance as interrupted. If the OpenAI-side WebSocket fails, the service logs the failure and stops the loop; that path is a known limitation compared with the client-disconnect path.
+On a normal `stop` event, Python saves the transcript as complete. If the fake caller WebSocket disconnects mid-call, the server finalizes the partial call, marks any active agent utterance as interrupted, saves the transcript JSON with whatever data exists, and closes the OpenAI-side WebSocket. If the OpenAI-side WebSocket fails first, the service logs the failure and stops the loop; that path is a known limitation compared with the client-disconnect path.
+
+This means a mid-call browser/client failure should not lose all call data. The live stream ends, but the partial transcript remains available for the Next.js UI to load through the Python HTTP endpoints.
 
 ## Environment
 
@@ -100,9 +126,7 @@ Optional:
 - `OPENAI_REALTIME_MODEL`: defaults to `gpt-realtime`
 - `HOST`: defaults to `0.0.0.0`
 - `PORT`: defaults to `5050`
-- `SILENCE_DURATION_MS`: defaults to `700`
-
-Example `realtime-py/.env`:
+  Example `realtime-py/.env`:
 
 ```bash
 OPENAI_API_KEY=your_api_key
@@ -153,17 +177,21 @@ npm run dev
 
 Open `http://localhost:3000`. The Python service should be running on `http://localhost:5050`. If needed, set `SERVER_URL=http://localhost:5050` for the Next.js process.
 
+Click `Run demo` in the sidebar to trigger the same WAV fixture call from the UI. The button calls Next.js `POST /api/demo-call`, which proxies to Python `POST /demo-call`. When the Python service finishes streaming the three WAV files and saves the transcript, the UI refreshes the call list and selects the new call.
+
 ## API
 
 Python exposes:
 
 - `GET http://localhost:5050/calls`
 - `GET http://localhost:5050/calls/{call_id}`
+- `POST http://localhost:5050/demo-call`
 
 Next.js proxies:
 
 - `GET http://localhost:3000/api/calls`
 - `GET http://localhost:3000/api/calls/{call_id}`
+- `POST http://localhost:3000/api/demo-call`
 
 ## Transcript Shape
 
@@ -177,66 +205,59 @@ Example:
 
 ```json
 {
-	"call_id": "call-20260607T180117475Z",
-	"started_at": "2026-06-07T18:01:19.421022+00:00",
+	"call_id": "call-20260608T012442114Z",
+	"started_at": "2026-06-08T01:24:43.299692+00:00",
 	"audio_format": "pcm16_24000_mono",
 	"utterances": [
 		{
-			"speaker": "agent",
-			"text": "Hello, thank you for calling KFC! How can I help you today?",
-			"start_ms": 0,
-			"end_ms": 3650,
-			"interrupted": false
-		},
-		{
 			"speaker": "user",
-			"text": "Hi, I'd like to place an order for a Zinger burger with fries and a Coke, please.",
-			"start_ms": 3950,
-			"end_ms": 8678
+			"text": "Hey, I want to place an order for a Zinger burger, some fries, and a coke, please.",
+			"start_ms": 1000,
+			"end_ms": 6220
 		},
 		{
 			"speaker": "agent",
 			"text": "Sure, I can help with that-",
-			"start_ms": 8670,
-			"end_ms": 9420,
+			"start_ms": 6200,
+			"end_ms": 6950,
 			"interrupted": true
 		},
 		{
 			"speaker": "user",
-			"text": "Actually, could you make that a Kentucky burger with fries and a Coke?",
-			"start_ms": 8878,
-			"end_ms": 13054
+			"text": "Actually, scratch that. I want a chicken piece, fries, and a Coke now.",
+			"start_ms": 6420,
+			"end_ms": 11460
 		},
 		{
 			"speaker": "agent",
-			"text": "Got it, we'll switch that to a Kentucky Burger. Would you like to keep the same drink or change it?",
-			"start_ms": 13038,
-			"end_ms": 18138,
+			"text": "Got it, one chicken piece, fries, and a Coke. What size fries and Coke would you like?",
+			"start_ms": 11440,
+			"end_ms": 16840,
 			"interrupted": false
 		}
 	],
 	"metrics": {
-		"stt_first_final_ms": 573,
-		"llm_first_token_ms": 1098,
-		"tts_first_byte_ms": 1185,
-		"voice_to_voice_ms": 1185
+		"stt_first_final_ms": 814,
+		"llm_first_token_ms": 1435,
+		"tts_first_byte_ms": 1523,
+		"voice_to_voice_ms": 1523
 	},
 	"latency_events": [
 		{
 			"turn_index": 1,
-			"user_speech_end_clock_ms": 19948,
-			"stt_first_final_ms": 573,
-			"llm_first_token_ms": 1098,
-			"tts_first_byte_ms": 1185,
-			"voice_to_voice_ms": 1185
+			"user_speech_end_clock_ms": 366900,
+			"stt_first_final_ms": 814,
+			"llm_first_token_ms": 1435,
+			"tts_first_byte_ms": 1523,
+			"voice_to_voice_ms": 1523
 		},
 		{
 			"turn_index": 2,
-			"user_speech_end_clock_ms": 25818,
-			"stt_first_final_ms": 817,
-			"llm_first_token_ms": 1731,
-			"tts_first_byte_ms": 1846,
-			"voice_to_voice_ms": 1846
+			"user_speech_end_clock_ms": 374065,
+			"stt_first_final_ms": 824,
+			"llm_first_token_ms": 1449,
+			"tts_first_byte_ms": 1523,
+			"voice_to_voice_ms": 1523
 		}
 	]
 }
