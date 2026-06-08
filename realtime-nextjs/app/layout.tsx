@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
 	title: 'AI Voice Agent',
-	description: 'Submission: Affan Mustafa'
+	description: 'Affan Mustafa'
 };
 
 export default function RootLayout({
