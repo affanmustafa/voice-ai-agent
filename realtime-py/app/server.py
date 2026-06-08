@@ -25,17 +25,6 @@ app = FastAPI(title="Realtime Voice Pipeline Demo")
 store = TranscriptStore()
 AGENT_GREETING = "In English, greet the caller as a KFC ordering assistant and ask how you can help."
 
-
-@app.get("/", response_class=JSONResponse)
-async def index_page() -> Dict[str, str]:
-    return {"message": "Realtime voice pipeline demo is running."}
-
-
-@app.get("/health", response_class=JSONResponse)
-async def health() -> Dict[str, str]:
-    return {"status": "ok"}
-
-
 @app.get("/calls", response_class=JSONResponse)
 async def list_calls() -> Dict[str, Any]:
     return {"calls": store.list_ids()}
